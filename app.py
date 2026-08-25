@@ -6,7 +6,10 @@ called from the worker, because Tk is not thread-safe.
 """
 
 import queue
+import subprocess
+import sys
 import threading
+import time
 import tkinter as tk
 import tkinter.font as tkfont
 from pathlib import Path
@@ -76,7 +79,7 @@ def apply_theme(root) -> None:
                     fieldbackground=PALETTE["field"], borderwidth=1, rowheight=26)
     style.configure("Treeview.Heading", background=PALETTE["panel"],
                     foreground=PALETTE["muted"], relief="flat")
-    style.map("Treeview", background=[("selected", "#dfe8f6")],
+    style.map("Treeview", background=[("selected", PALETTE["selected"])],
               foreground=[("selected", PALETTE["ink"])])
 
 
@@ -107,6 +110,9 @@ class App(tk.Tk):
         self._body.pack(fill="both", expand=True)
         self._panels = {}
         self._build_setup()
+        self._build_running()
+        self._build_results()
+        self._build_blocked()
         self._build_statusbar()
         self.show("setup")
 
@@ -149,9 +155,12 @@ class App(tk.Tk):
         self.status_right.pack(side="right")
 
     def show(self, name: str) -> None:
-        for key, panel in self._panels.items():
-            panel.pack_forget()
-        self._panels[name].pack(fill="both", expand=True)
+        panel = self._panels.get(name)
+        if panel is None:
+            raise KeyError(f"no panel named {name!r}; built: {sorted(self._panels)}")
+        for existing in self._panels.values():
+            existing.pack_forget()
+        panel.pack(fill="both", expand=True)
         self._visible = name
 
     # -- setup panel -------------------------------------------------------
@@ -169,7 +178,7 @@ class App(tk.Tk):
         self.terms_list = tk.Listbox(
             terms_box, width=38, height=5, font=self.fonts["ui"],
             bg=PALETTE["field"], fg=PALETTE["ink"], relief="solid", bd=1,
-            highlightthickness=0, selectbackground="#dfe8f6",
+            highlightthickness=0, selectbackground=PALETTE["selected"],
             selectforeground=PALETTE["ink"], activestyle="none",
         )
         self.terms_list.pack()
@@ -197,6 +206,19 @@ class App(tk.Tk):
             ("Re-scrape states already finished", self.var_force),
         ):
             ttk.Checkbutton(opts, text=text, variable=var).pack(anchor="w", pady=2)
+
+        limit_row = ttk.Frame(opts)
+        limit_row.pack(anchor="w", pady=2)
+        self.var_limited = tk.BooleanVar(value=self.prefs.get("limit") is not None)
+        ttk.Checkbutton(limit_row, text="Stop after", variable=self.var_limited,
+                        command=self._sync_limit).pack(side="left")
+        self.limit_spin = ttk.Spinbox(limit_row, from_=1, to=120, width=4,
+                                      font=self.fonts["mono"])
+        self.limit_spin.set(self.prefs.get("limit") or 3)
+        self.limit_spin.pack(side="left", padx=6)
+        ttk.Label(limit_row, text="clubs per state").pack(side="left")
+        self._sync_limit()
+
         ttk.Label(opts, wraplength=520, style="Muted.TLabel", font=self.fonts["small"],
                   text=("Paced to about 3 seconds per club, so a full run takes hours. "
                         "You can close this window and pick it up later.")
@@ -214,6 +236,131 @@ class App(tk.Tk):
         self.grid_setup.pack(fill="x")
         self.grid_setup.update_coverage(self.state.coverage)
 
+    def _sync_limit(self) -> None:
+        self.limit_spin.configure(state="normal" if self.var_limited.get() else "disabled")
+
+    # -- running panel -----------------------------------------------------
+    def _build_running(self):
+        panel = ttk.Frame(self._body, padding=(16, 14))
+        self._panels["running"] = panel
+
+        head = ttk.Frame(panel)
+        head.pack(fill="x")
+        self.run_current = ttk.Label(head, text="", font=self.fonts["ui_bold"])
+        self.run_current.pack(side="left")
+        self.run_stage = ttk.Label(head, text="", style="Muted.TLabel",
+                                   font=self.fonts["small"])
+        self.run_stage.pack(side="left", padx=(12, 0))
+
+        self.run_bar = ttk.Progressbar(panel, mode="determinate", maximum=100)
+        self.run_bar.pack(fill="x", pady=(9, 8))
+
+        stats = ttk.Frame(panel)
+        stats.pack(fill="x")
+        self.run_counts = ttk.Label(stats, text="", style="Muted.TLabel",
+                                    font=self.fonts["small"])
+        self.run_counts.pack(side="left")
+        ttk.Label(stats, style="Muted.TLabel", font=self.fonts["small"],
+                  text="Progress is saved as it goes").pack(side="right")
+
+        ttk.Label(panel, text="COVERAGE", style="Faint.TLabel",
+                  font=self.fonts["label"]).pack(anchor="w", pady=(16, 6))
+        self.grid_running = CoverageGrid(panel, scrape.ALL_50, cell_h=40,
+                                         font=self.fonts["cell"])
+        self.grid_running.pack(fill="x")
+
+        ttk.Label(panel, text="ACTIVITY", style="Faint.TLabel",
+                  font=self.fonts["label"]).pack(anchor="w", pady=(14, 6))
+        self.log_box = tk.Text(panel, height=7, font=self.fonts["mono"],
+                               bg=PALETTE["field"], fg=PALETTE["muted"],
+                               relief="solid", bd=1, highlightthickness=0,
+                               wrap="none", state="disabled")
+        self.log_box.pack(fill="both", expand=True)
+
+    # -- results panel -----------------------------------------------------
+    def _build_results(self):
+        panel = ttk.Frame(self._body, padding=(16, 14))
+        self._panels["results"] = panel
+
+        head = ttk.Frame(panel)
+        head.pack(fill="x")
+        self.res_count = ttk.Label(head, text="", font=self.fonts["big"])
+        self.res_count.pack(side="left")
+        ttk.Label(head, text="clubs saved", style="Muted.TLabel",
+                  font=self.fonts["ui"]).pack(side="left", padx=(9, 0), pady=(9, 0))
+        self.res_summary = ttk.Label(head, text="", style="Muted.TLabel",
+                                     font=self.fonts["small"])
+        self.res_summary.pack(side="left", padx=(26, 0), pady=(9, 0))
+
+        self.res_warning = ttk.Label(panel, text="", style="Muted.TLabel",
+                                     font=self.fonts["small"], wraplength=1040)
+        self.res_warning.pack(fill="x", pady=(8, 0))
+
+        body = ttk.Frame(panel)
+        body.pack(fill="both", expand=True, pady=(12, 0))
+
+        cols = ("name", "where", "phone", "email", "rating")
+        self.table = ttk.Treeview(body, columns=cols, show="headings", height=12)
+        for col, title, width in (
+            ("name", "Club", 280), ("where", "Where", 150), ("phone", "Phone", 130),
+            ("email", "Email", 220), ("rating", "Rating", 90),
+        ):
+            self.table.heading(col, text=title)
+            self.table.column(col, width=width, anchor="w")
+        self.table.pack(side="left", fill="both", expand=True)
+
+        health = ttk.Frame(body, padding=(16, 0, 0, 0))
+        health.pack(side="right", fill="y")
+        ttk.Label(health, text="HOW COMPLETE THE DATA IS", style="Faint.TLabel",
+                  font=self.fonts["label"]).pack(anchor="w", pady=(0, 8))
+        self.health_rows = ttk.Frame(health)
+        self.health_rows.pack(fill="both", expand=True)
+
+        actions = ttk.Frame(panel)
+        actions.pack(fill="x", pady=(12, 0))
+        RoundedButton(actions, "Open results file", self.on_open_folder,
+                      kind="primary", font=self.fonts["ui_bold"], height=30).pack(side="left")
+        RoundedButton(actions, "Start a new run", lambda: self.show("setup"),
+                      font=self.fonts["ui"], height=30).pack(side="left", padx=(10, 0))
+
+    # -- interrupted panel -------------------------------------------------
+    def _build_blocked(self):
+        panel = ttk.Frame(self._body, padding=(16, 16))
+        self._panels["blocked"] = panel
+
+        card = ttk.Frame(panel, style="Card.TFrame", padding=(18, 16))
+        card.pack(fill="x")
+        self.blocked_title = ttk.Label(card, text="Google has stopped answering",
+                                       font=self.fonts["ui_bold"],
+                                       background=PALETTE["field"])
+        self.blocked_title.pack(anchor="w")
+        self.blocked_body = ttk.Label(
+            card, wraplength=700, style="Muted.TLabel", font=self.fonts["ui"],
+            background=PALETTE["field"], text="")
+        self.blocked_body.pack(anchor="w", pady=(6, 0))
+        ttk.Label(card, background=PALETTE["field"], font=self.fonts["small"],
+                  wraplength=700, foreground="#2f6b45",
+                  text=("Nothing has been lost. Every club found so far is already "
+                        "written to disk, so continuing picks up where it stopped.")
+                  ).pack(anchor="w", pady=(10, 0))
+
+        row = ttk.Frame(card, style="Card.TFrame")
+        row.pack(anchor="w", pady=(14, 0))
+        RoundedButton(row, "Carry on from here", self.on_start, kind="primary",
+                      font=self.fonts["ui_bold"], height=30).pack(side="left")
+        RoundedButton(row, "Finish here and keep what I have",
+                      lambda: self.show("results"), font=self.fonts["ui"],
+                      height=30).pack(side="left", padx=(9, 0))
+
+        ttk.Label(panel, text="WHERE IT GOT TO", style="Faint.TLabel",
+                  font=self.fonts["label"]).pack(anchor="w", pady=(18, 6))
+        self.grid_blocked = CoverageGrid(panel, scrape.ALL_50, cell_h=40,
+                                         font=self.fonts["cell"])
+        self.grid_blocked.pack(fill="x")
+        self.blocked_detail = ttk.Label(panel, text="", style="Muted.TLabel",
+                                        font=self.fonts["small"], wraplength=1040)
+        self.blocked_detail.pack(anchor="w", pady=(10, 0))
+
     # -- actions (wired in Task 9) ----------------------------------------
     def on_add_term(self):
         term = self.term_entry.get().strip()
@@ -226,16 +373,17 @@ class App(tk.Tk):
             self.terms_list.delete(index)
 
     def on_open_folder(self):
-        import subprocess
-        import sys
         folder = Path(scrape.CSV_PATH).parent.resolve()
         folder.mkdir(parents=True, exist_ok=True)
-        if sys.platform == "darwin":
-            subprocess.run(["open", str(folder)], check=False)
-        elif sys.platform.startswith("win"):
-            subprocess.run(["explorer", str(folder)], check=False)
-        else:
-            subprocess.run(["xdg-open", str(folder)], check=False)
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["open", str(folder)], check=False)
+            elif sys.platform.startswith("win"):
+                subprocess.run(["explorer", str(folder)], check=False)
+            else:
+                subprocess.run(["xdg-open", str(folder)], check=False)
+        except OSError:
+            pass
 
     def on_start(self):
         pass  # Task 9
@@ -247,8 +395,110 @@ class App(tk.Tk):
             "enrich": self.var_enrich.get(),
             "headed": self.var_headed.get(),
             "force": self.var_force.get(),
-            "limit": self.prefs.get("limit"),
+            "limit": int(self.limit_spin.get()) if self.var_limited.get() else None,
         }
+
+    def render(self, now: float | None = None) -> None:
+        """Paint the visible panel from self.state. Main thread only."""
+        now = time.monotonic() if now is None else now
+        s = self.state
+
+        dot = {"idle": PALETTE["partial"], "running": PALETTE["accent"],
+               "finished": PALETTE["done"], "blocked": PALETTE["partial"]}[s.status]
+        self.status_dot.delete("all")
+        self.status_dot.create_oval(0, 0, 9, 9, fill=dot, outline=dot)
+        self.status_text.configure(
+            text={"idle": "Ready", "running": "Running",
+                  "finished": "Finished", "blocked": "Paused"}[s.status])
+
+        if s.status == "running":
+            self.run_current.configure(text=s.current or "Working…")
+            self.run_stage.configure(text=s.stage)
+            done_pct = (100 * s.queries_done / s.queries_total) if s.queries_total else 0
+            self.run_bar.configure(value=done_pct)
+            self.run_counts.configure(
+                text=f"{s.queries_done} of {s.queries_total} searches   ·   "
+                     f"{s.clubs} clubs saved   ·   {runstate.elapsed(s, now)} elapsed"
+                     + (f"   ·   about {runstate.remaining(s, now)} left"
+                        if runstate.remaining(s, now) else ""))
+            self.grid_running.update_coverage(s.coverage)
+            self.log_box.configure(state="normal")
+            self.log_box.delete("1.0", "end")
+            self.log_box.insert("1.0", "\n".join(s.log[-7:]))
+            self.log_box.configure(state="disabled")
+            self.status_detail.configure(text=f"{s.clubs} clubs")
+            self.status_right.configure(text="Safe to close — picks up where it left off")
+
+        elif s.status == "finished":
+            self.res_count.configure(text=f"{s.clubs:,}")
+            self.res_summary.configure(
+                text=f"Finished in {runstate.elapsed(s, now)} · "
+                     f"{s.queries_done} of {s.queries_total} searches")
+            partial = [st for st, v in s.coverage.items() if v == "partial"]
+            self.res_warning.configure(
+                text=(f"{len(partial)} states are only partly covered "
+                      f"({', '.join(partial[:4])}) — they hit Google's 120-result limit."
+                      if partial else ""))
+            self._fill_table()
+            self._fill_health()
+            self.status_detail.configure(text=str(scrape.CSV_PATH))
+            self.status_right.configure(text="")
+
+        elif s.status == "blocked":
+            crashed = s.finish_reason == "crashed"
+            self.blocked_title.configure(
+                text="Something went wrong" if crashed else "Google has stopped answering")
+            self.blocked_body.configure(
+                text=(s.failures[-1][1] if crashed and s.failures else
+                      "Three searches failed one after another, which usually means "
+                      "Google wants someone to prove they are not a robot. The run "
+                      "paused itself rather than keep hammering the site."))
+            self.grid_blocked.update_coverage(s.coverage)
+            failed = [st for st, v in s.coverage.items() if v == "failed"]
+            self.blocked_detail.configure(
+                text=(f"{', '.join(failed)} failed and will be tried again next run."
+                      if failed else ""))
+            self.status_detail.configure(text=f"{s.clubs} clubs saved")
+            self.status_right.configure(text="Waiting for you")
+
+        else:
+            self.grid_setup.update_coverage(s.coverage)
+            self.status_detail.configure(
+                text=f"{s.queries_total} searches queued · {s.clubs} clubs cached")
+            self.status_right.configure(text="")
+
+    def _fill_table(self):
+        for row in self.table.get_children():
+            self.table.delete(row)
+        records, _ = scrape.read_cache()
+        for record in records[:200]:
+            self.table.insert("", "end", values=(
+                record.get("name", ""),
+                f"{record.get('city', '')}, {record.get('state', '')}".strip(", "),
+                record.get("phone", ""),
+                (record.get("emails", "") or "").split(";")[0].strip(),
+                f"{record.get('rating', '')} · {record.get('reviews', '')}".strip(" ·"),
+            ))
+
+    def _fill_health(self):
+        for child in self.health_rows.winfo_children():
+            child.destroy()
+        records, _ = scrape.read_cache()
+        interesting = ["name", "address", "phone", "website", "emails",
+                       "instagram", "owner_name", "owner_phone"]
+        for column, rate in runstate.fill_rate_rows(records, interesting):
+            row = ttk.Frame(self.health_rows)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=column, width=13, style="Muted.TLabel",
+                      font=self.fonts["small"]).pack(side="left")
+            meter = tk.Canvas(row, width=120, height=6, highlightthickness=0,
+                              bd=0, bg=PALETTE["sunken"])
+            meter.pack(side="left", padx=6)
+            colour = PALETTE["done"] if rate >= 0.4 else PALETTE["partial"]
+            meter.create_rectangle(0, 0, max(1, 120 * rate), 6,
+                                   fill=colour, outline=colour)
+            ttk.Label(row, text=f"{rate:.0%}", width=5, style="Muted.TLabel",
+                      font=self.fonts["small"]).pack(side="left")
 
 
 if __name__ == "__main__":
