@@ -194,13 +194,57 @@ One `Tk` window, four states, matching `design/canvas.json`:
 | Finished | Results table, data-health panel, buttons to open the file or start again. |
 | Interrupted | The blocked banner with its three choices, above the grid showing what survived. |
 
-Widgets are `ttk` throughout. No hardcoded fonts or colours from the macOS
-mockups: the theme resolves per platform (`aqua` on macOS, `vista` on
-Windows) and fonts come from `tkinter.font.nametofont`. Every path is a
-`pathlib.Path`.
+Widgets are `ttk` throughout, on a forced `clam` theme with an explicit
+palette (see section 7a). Every path is a `pathlib.Path`.
 
 The coverage grid is a `tk.Canvas` of coloured rectangles rather than 50
 widgets, so a repaint is one redraw.
+
+## 7a. Visual fidelity
+
+The app must look the same on macOS and Windows. Native per-platform theming
+is therefore rejected: `ttk` is forced to the `clam` theme, which ships on
+macOS, Windows and Linux alike and accepts full restyling. Verified on this
+machine: background, foreground, border width, relief and padding are all
+honoured under `clam`.
+
+The palette is the design's, converted from oklch to the hex values Tk needs:
+
+```python
+PALETTE = {
+    "bg":       "#f9f9f6",   "panel":    "#f3f3f0",
+    "sunken":   "#ededea",   "line":     "#dad9d5",
+    "ink":      "#2c2a25",   "muted":    "#71706b",
+    "faint":    "#86857f",   "field":    "#fefdfc",
+    "accent":   "#3b6fbc",   "accent_d": "#2559a3",
+    "done":     "#50a069",   "partial":  "#dea645",
+    "failed":   "#c74f47",
+}
+```
+
+Fonts are resolved once at startup against `tkinter.font.families()`, taking
+the first that exists, because no single face ships on both systems:
+
+```python
+UI_FACES   = ("Segoe UI", "Helvetica Neue", "DejaVu Sans")
+MONO_FACES = ("Consolas", "Menlo", "DejaVu Sans Mono", "Courier New")
+```
+
+**Pinned across platforms:** every colour, all spacing and panel geometry, the
+type scale in points, table and border treatment, and the coverage grid, which
+is drawn on a `tk.Canvas` and is therefore identical to the pixel.
+
+**Unavoidably different:** the font face itself, and with it small text-metric
+differences. Layout must therefore size text containers by measuring rendered
+text rather than by hardcoded pixel widths. Font smoothing differs between the
+two systems, and the window's own title bar belongs to the OS.
+
+**Not achievable in `ttk`:** rounded corners and drop shadows. Widgets under
+`clam` are square. The mockups draw buttons with a small radius; the app uses
+square buttons, which suits a native toolkit and costs nothing. Reproducing
+the radius would mean drawing every button on a `Canvas` and reimplementing
+hover, press, focus and disabled states by hand, which is a poor trade for a
+few pixels of corner.
 
 ## 8. Error handling
 
@@ -273,6 +317,6 @@ stop mid-run, and a window close during a run.
 | --- | --- |
 | Widget code drifts onto the worker thread and corrupts Tk state | All widget access lives in `app.py` methods called only from the `root.after` tick. Nothing in `runstate.py` imports `tkinter`. |
 | A slow repaint blocks the tick during a fast event burst | Events are drained in batches and the grid repaints at most once per tick. |
-| Windows appearance differs from the macOS mockups | Accepted. Native widgets are the point of Tkinter; the layout and information design carry over, exact metrics do not. |
+| Windows appearance differs from the macOS mockups | Addressed by section 7a: forced `clam` theme and an explicit palette pin the look. Residual difference is the font face only, which is why text containers are measured rather than fixed. |
 | A teammate's `uv` install is blocked by corporate policy | The README documents the manual path: install Python 3.12, then `pip install -r requirements.txt`. |
 | The event hook changes CLI output | The default listener reproduces today's strings, and the existing tests cover the code paths that emit them. |
