@@ -1186,6 +1186,21 @@ def test_extract_phones_deduplicates_in_order():
 
 def test_extract_phones_drops_invalid_candidates():
     assert scrape.extract_phones("order SKU 1234567890123 today") == []
+
+
+def test_extract_phones_finds_a_non_us_format():
+    # The whole point of the region parameter. PHONE_RE never matched this
+    # shape, so a US-only candidate finder would report no phones at all
+    # for an Indian business.
+    assert scrape.extract_phones("Reception: 022 2822 1234", region="IN") == ["+912228221234"]
+
+
+def test_extract_phones_finds_a_uk_format():
+    assert scrape.extract_phones("Ring us on 020 7930 4832 any time", region="GB") == ["+442079304832"]
+
+
+def test_extract_phones_ignores_an_order_number():
+    assert scrape.extract_phones("Order #4567890123 shipped") == []
 ```
 
 - [ ] **Step 3: Run the tests to verify they fail**
@@ -1223,14 +1238,21 @@ def normalize_phone(text: str, region: str = "US") -> str:
 def extract_phones(text: str, region: str = "US") -> list[str]:
     """Valid phone numbers in `text`, E.164, deduplicated, in order.
 
-    PHONE_RE still finds the candidates; normalize_phone decides which are
-    real. Keeping the regex as a first pass avoids handing every digit run in
-    a page to the parser.
+    PhoneNumberMatcher, not PHONE_RE. The regex is US-shaped and never
+    matched "022 2822 1234", so pairing it with an international validator
+    would report no phones at all for a business outside the US. The matcher
+    scans free text for any format valid in `region`, and rejects SKUs and
+    order numbers on its own.
+
+    PHONE_RE stays in the file - the owner-name proximity search still uses
+    it - but no longer feeds this function.
     """
     seen: list[str] = []
-    for match in PHONE_RE.finditer(text):
-        number = normalize_phone(match.group(0), region)
-        if number and number not in seen:
+    for match in phonenumbers.PhoneNumberMatcher(text, region or "US"):
+        number = phonenumbers.format_number(
+            match.number, phonenumbers.PhoneNumberFormat.E164
+        )
+        if number not in seen:
             seen.append(number)
     return seen
 ```
