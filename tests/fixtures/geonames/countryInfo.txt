@@ -1,0 +1,5 @@
+# GeoNames.org Country Information
+#ISO	ISO3	ISO-Numeric	fips	Country	Capital	Area(in sq km)	Population	Continent
+US	USA	840	US	United States	Washington	9629091	327167434	NA
+IN	IND	356	IN	India	New Delhi	3287590	1352617328	AS
+GB	GBR	826	UK	United Kingdom	London	244820	67141684	EU
