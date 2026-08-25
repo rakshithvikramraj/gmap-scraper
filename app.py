@@ -13,6 +13,7 @@ import threading
 import time
 from pathlib import Path
 
+import geo
 import paths
 
 
@@ -507,8 +508,13 @@ class App(tk.Tk):
         scrape.subscribe(watch)
         reason = "done"
         try:
+            # The GUI still only lets someone pick US states, so every place
+            # it searches is a US region; a later plan gives it a real
+            # country/state/city selection and this seam goes away.
+            places = [geo.Place(country="United States", region=state)
+                      for state in prefs["states"]]
             scrape.run_stage1(
-                prefs["terms"], prefs["states"],
+                prefs["terms"], places,
                 limit=prefs.get("limit"),
                 headless=not prefs["headed"],
                 force=prefs["force"],

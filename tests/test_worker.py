@@ -9,6 +9,7 @@ import queue
 import types
 
 import app
+import geo
 import scrape
 
 
@@ -21,12 +22,15 @@ class _Stub:
 
 def _run(monkeypatch, *, blocked=False, stopped=False, raises=False, enrich=True):
     calls = []
+    captured = {}
     monkeypatch.setattr(scrape, "read_cache", lambda *a, **k: ([], set()))
     monkeypatch.setattr(scrape, "write_csv", lambda *a, **k: calls.append("csv"))
     monkeypatch.setattr(scrape, "stop_requested", lambda: stopped)
 
-    def fake_stage1(*a, **k):
+    def fake_stage1(terms, places, **kwargs):
         calls.append("stage1")
+        captured["terms"] = terms
+        captured["places"] = places
         if blocked:
             scrape.emit("blocked", term="t", state="s", consecutive=3)
         if raises:
@@ -41,33 +45,42 @@ def _run(monkeypatch, *, blocked=False, stopped=False, raises=False, enrich=True
     kinds = []
     while not stub.events.empty():
         kinds.append(stub.events.get_nowait())
-    return calls, kinds
+    return calls, kinds, captured
 
 
 def test_a_clean_run_enriches_and_reports_done(monkeypatch):
-    calls, kinds = _run(monkeypatch)
+    calls, kinds, _ = _run(monkeypatch)
     assert "stage2" in calls
     assert kinds[-1] == ("run_finished", {"reason": "done"})
 
 
 def test_a_blocked_run_never_enriches(monkeypatch):
-    calls, kinds = _run(monkeypatch, blocked=True)
+    calls, kinds, _ = _run(monkeypatch, blocked=True)
     assert "stage2" not in calls, "enriching after a block wastes hours behind a paused panel"
     assert kinds[-1] == ("run_finished", {"reason": "blocked"})
 
 
 def test_a_stopped_run_reports_stopped(monkeypatch):
-    calls, kinds = _run(monkeypatch, stopped=True)
+    calls, kinds, _ = _run(monkeypatch, stopped=True)
     assert "stage2" not in calls
     assert kinds[-1] == ("run_finished", {"reason": "stopped"})
 
 
 def test_a_crash_still_reports_run_finished(monkeypatch):
-    calls, kinds = _run(monkeypatch, raises=True)
+    calls, kinds, _ = _run(monkeypatch, raises=True)
     assert kinds[-1] == ("run_finished", {"reason": "crashed"})
     assert any(k == "query_failed" for k, _ in kinds)
 
 
 def test_enrichment_can_be_switched_off(monkeypatch):
-    calls, _ = _run(monkeypatch, enrich=False)
+    calls, _, _ = _run(monkeypatch, enrich=False)
     assert "stage2" not in calls
+
+
+def test_the_worker_passes_places_not_state_names(monkeypatch):
+    # The GUI stores plain state names; run_stage1 takes geo.Place. Nothing
+    # else catches the mismatch, because run_stage1 is monkeypatched here.
+    _, _, captured = _run(monkeypatch)
+    assert all(isinstance(p, geo.Place) for p in captured["places"])
+    assert captured["places"][0].country == "United States"
+    assert captured["places"][0].region == "s"
