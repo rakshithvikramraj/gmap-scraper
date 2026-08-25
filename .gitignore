@@ -9,3 +9,4 @@ data/
 # seeded design canvas (2MB editor payload; rebuild with seed-canvas.mjs)
 design/club-scraper-desktop-app.html
 design/_base.txt
+.DS_Store

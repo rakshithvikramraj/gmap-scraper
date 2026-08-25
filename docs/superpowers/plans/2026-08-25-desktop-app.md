@@ -27,7 +27,7 @@
   PALETTE = {
       "bg": "#f9f9f6", "panel": "#f3f3f0", "sunken": "#ededea", "line": "#dad9d5",
       "ink": "#2c2a25", "muted": "#71706b", "faint": "#86857f", "field": "#fefdfc",
-      "accent": "#3b6fbc", "accent_d": "#2559a3",
+      "accent": "#3b6fbc", "accent_d": "#2559a3", "selected": "#dfe8f6",
       "done": "#50a069", "partial": "#dea645", "failed": "#c74f47",
   }
   ```
@@ -1727,11 +1727,77 @@ git commit -m "feat: window shell, forced clam theme and setup panel"
 
 Read `design/Running.dc.html`, `design/Results.dc.html` and `design/Blocked.dc.html` before laying each one out.
 
-- [ ] **Step 1: Add `import time` to the stdlib import group**
+- [ ] **Step 1: Fix four defects carried in from Task 7's plan text**
+
+These are mistakes in the plan, found by Task 7's review. They are small and touch files this task already edits, so they are corrected here rather than in a separate round.
+
+**(a) Local imports.** `on_open_folder` does `import subprocess` and `import sys` inside the method body, breaking the single-import-block rule every other module follows. Move both into the top-of-file stdlib group, isort-ordered, and delete them from the method.
+
+**(b) An unnamed colour, duplicated.** `#dfe8f6` appears as a literal twice — in `apply_theme`'s `style.map("Treeview", ...)` and again as the term listbox's `selectbackground`. Add it to `widgets.PALETTE` as a fourteenth entry:
+
+```python
+    "accent": "#3b6fbc", "accent_d": "#2559a3", "selected": "#dfe8f6",
+```
+
+then replace both literals in `app.py` with `PALETTE["selected"]`. This is the only change to `widgets.py` this task may make.
+
+**(c) `show()` can blank the window.** It calls `pack_forget()` on every panel and then indexes `self._panels[name]`, so an unregistered name raises `KeyError` *after* everything is hidden — leaving a blank window and an exception Tk merely logs to stderr. This task registers three more panel names, which is what makes it live. Guard it:
+
+```python
+    def show(self, name: str) -> None:
+        panel = self._panels.get(name)
+        if panel is None:
+            raise KeyError(f"no panel named {name!r}; built: {sorted(self._panels)}")
+        for existing in self._panels.values():
+            existing.pack_forget()
+        panel.pack(fill="both", expand=True)
+        self._visible = name
+```
+
+Looking the panel up *before* hiding anything means a bad name fails loudly with the window intact, rather than quietly leaving a blank one.
+
+**(d) `on_open_folder` can raise on Linux.** `check=False` suppresses a non-zero exit but not a missing executable, so an absent `xdg-open` raises `FileNotFoundError`. Wrap the platform branch in `try: ... except OSError: pass` — failing to open a file manager must never take the window down.
+
+- [ ] **Step 2: Add the "Stop after N per state" control**
+
+`design/Main.dc.html` shows a fourth option the plan omitted, and unlike the design's other missing controls this one is already plumbed end to end: `limit` is in `settings.DEFAULTS` and Task 9 passes it to `run_stage1`. Only the control is missing, and it is what lets someone take a five-minute trial run instead of committing to a multi-hour one.
+
+In `_build_setup`, after the three existing checkboxes, add:
+
+```python
+        limit_row = ttk.Frame(opts)
+        limit_row.pack(anchor="w", pady=2)
+        self.var_limited = tk.BooleanVar(value=self.prefs.get("limit") is not None)
+        ttk.Checkbutton(limit_row, text="Stop after", variable=self.var_limited,
+                        command=self._sync_limit).pack(side="left")
+        self.limit_spin = ttk.Spinbox(limit_row, from_=1, to=120, width=4,
+                                      font=self.fonts["mono"])
+        self.limit_spin.set(self.prefs.get("limit") or 3)
+        self.limit_spin.pack(side="left", padx=6)
+        ttk.Label(limit_row, text="clubs per state").pack(side="left")
+        self._sync_limit()
+```
+
+and add the enable/disable helper:
+
+```python
+    def _sync_limit(self) -> None:
+        self.limit_spin.configure(state="normal" if self.var_limited.get() else "disabled")
+```
+
+In `current_prefs`, replace `"limit": self.prefs.get("limit"),` with:
+
+```python
+            "limit": int(self.limit_spin.get()) if self.var_limited.get() else None,
+```
+
+A disabled spinbox still returns its value, so the `var_limited` check is what makes "unticked" mean no limit rather than 3.
+
+- [ ] **Step 3: Add `import time` to the stdlib import group**
 
 `render()` below needs it, and Task 9 relies on it too.
 
-- [ ] **Step 2: Add the three panels**
+- [ ] **Step 4: Add the three panels**
 
 Append these methods to `App`, before the actions section:
 
@@ -1867,7 +1933,7 @@ Register them in `__init__` by adding these two lines after `self._build_setup()
         self._build_blocked()
 ```
 
-- [ ] **Step 3: Add `render()`**
+- [ ] **Step 5: Add `render()`**
 
 Append to `App`:
 
@@ -1975,19 +2041,19 @@ Append to `App`:
                       font=self.fonts["small"]).pack(side="left")
 ```
 
-- [ ] **Step 4: Check the suite still passes**
+- [ ] **Step 6: Check the suite still passes**
 
 Run: `pytest -v`
 Expected: **123 passed**
 
-- [ ] **Step 5: Launch and inspect each panel**
+- [ ] **Step 7: Launch and inspect each panel**
 
 Run: `python app.py`, then from a Python prompt or by temporarily calling `self.show(...)` in `__init__`, view each of `"running"`, `"results"` and `"blocked"` against its design file. Revert any temporary call before committing.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add app.py
+git add app.py widgets.py
 git commit -m "feat: running, results and interrupted panels"
 ```
 
@@ -2150,7 +2216,7 @@ In `__init__`, after `self.show("setup")`, add:
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 ```
 
-- [ ] **Step 4: Check the suite still passes**
+- [ ] **Step 6: Check the suite still passes**
 
 Run: `pytest -v`
 Expected: **123 passed**
