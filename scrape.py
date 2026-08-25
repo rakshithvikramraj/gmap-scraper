@@ -132,7 +132,7 @@ def extract_emails(html: str) -> list[str]:
 PHONE_RE = re.compile(
     r"(?:\+?1[\s.\-]?)?\(?([2-9]\d{2})\)?[\s.\-]?(\d{3})[\s.\-]?(\d{4})(?!\d)"
 )
-NAME_RE = re.compile(r"\b([A-Z][a-z]{1,15})\s+([A-Z][a-z]{1,15})\b")
+TITLE_TOKEN_RE = re.compile(r"\b[A-Z][a-z]{1,15}\b")
 
 OWNER_KEYWORDS = (
     "owner", "founder", "co-founder", "cofounder", "proprietor",
@@ -169,11 +169,25 @@ def extract_phones(text: str) -> list[str]:
     return seen
 
 
-def _clean_name(first: str, last: str) -> str:
-    """Reject candidate names that are really job titles or page furniture."""
-    if first.lower() in NAME_STOPWORDS or last.lower() in NAME_STOPWORDS:
-        return ""
-    return f"{first} {last}"
+def _names_in(fragment: str) -> list[str]:
+    """Title Case name pairs in `fragment`, in order, skipping title words.
+
+    Scans tokens instead of matching pairs directly. A pair regex is greedy:
+    on "Owner Maria Lopez" it matches ("Owner", "Maria"), the stopword filter
+    rejects that pair, and the scan resumes past "Maria" -- so the real name is
+    never seen. Filtering tokens first and pairing adjacent survivors handles a
+    title word sitting directly against the name.
+    """
+    tokens = [
+        (match.group(0), match.start(), match.end())
+        for match in TITLE_TOKEN_RE.finditer(fragment)
+        if match.group(0).lower() not in NAME_STOPWORDS
+    ]
+    names = []
+    for (first, _, first_end), (last, last_start, _) in zip(tokens, tokens[1:]):
+        if not fragment[first_end:last_start].strip():
+            names.append(f"{first} {last}")
+    return names
 
 
 def _keyword_spans(lowered: str) -> list[tuple[int, int]]:
@@ -228,11 +242,11 @@ def find_owner_contact(text: str) -> tuple[str, str]:
 
         before = text[max(0, match.start() - OWNER_WINDOW):match.start()]
         after = text[match.end():match.end() + OWNER_WINDOW]
-        candidates = [_clean_name(f, l) for f, l in NAME_RE.findall(before)]
-        name = next((c for c in reversed(candidates) if c), "")
+        names_before = _names_in(before)
+        name = names_before[-1] if names_before else ""
         if not name:
-            candidates = [_clean_name(f, l) for f, l in NAME_RE.findall(after)]
-            name = next((c for c in candidates if c), "")
+            names_after = _names_in(after)
+            name = names_after[0] if names_after else ""
 
         best_gap, best = gap, (name, phone)
     return best

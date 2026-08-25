@@ -146,3 +146,13 @@ def test_find_owner_contact_prefers_the_nearest_title_keyword():
 
 def test_find_owner_contact_empty_text():
     assert scrape.find_owner_contact("") == ("", "")
+
+
+def test_find_owner_contact_handles_title_directly_before_name():
+    text = "Owner Maria Lopez - (512) 555-0100"
+    assert scrape.find_owner_contact(text) == ("Maria Lopez", "+15125550100")
+
+
+def test_find_owner_contact_handles_title_before_name_in_prose():
+    text = "Founder Dave Kim can be reached at (512) 555-0100"
+    assert scrape.find_owner_contact(text) == ("Dave Kim", "+15125550100")
