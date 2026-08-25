@@ -140,3 +140,51 @@ def fold(state: RunState, kind: str, data: dict, now: float | None = None) -> Ru
         s.current = ""
 
     return s
+
+
+def _hm(seconds: float) -> str:
+    """Duration as "0m", "13m" or "1h 13m"."""
+    minutes = int(seconds // 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes:02d}m" if hours else f"{minutes}m"
+
+
+def elapsed(state: RunState, now: float) -> str:
+    """How long the run has been going, or "" before it starts."""
+    if state.started_at is None:
+        return ""
+    return _hm(max(0.0, now - state.started_at))
+
+
+def remaining(state: RunState, now: float) -> str:
+    """Rough time left, extrapolated from the pace so far.
+
+    Blank until at least one query has finished, because an estimate from a
+    sample of zero is a guess dressed up as information.
+    """
+    if state.started_at is None or not state.queries_done:
+        return ""
+    left = state.queries_total - state.queries_done
+    if left <= 0:
+        return ""
+    per_query = (now - state.started_at) / state.queries_done
+    return _hm(per_query * left)
+
+
+def fill_rate_rows(records, columns) -> list:
+    """(column, fraction non-empty) for each column, in the order given.
+
+    A value of 0 counts as filled: a club with zero reviews is real data, and
+    treating it as missing would make the reviews column permanently look
+    healthy or permanently look broken depending on which way you counted.
+    """
+    if not records:
+        return []
+    total = len(records)
+    return [
+        (
+            column,
+            sum(1 for r in records if str(r.get(column, "")).strip()) / total,
+        )
+        for column in columns
+    ]

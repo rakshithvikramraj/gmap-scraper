@@ -145,3 +145,65 @@ def test_the_log_is_capped():
 def test_an_unknown_event_is_ignored():
     s = runstate.initial_state(set(), TERMS, STATES)
     assert runstate.fold(s, "not_a_real_event", {"x": 1}) == s
+
+
+def test_elapsed_reads_as_hours_and_minutes():
+    s = runstate.RunState(started_at=0.0)
+    assert runstate.elapsed(s, 0) == "0m"
+    assert runstate.elapsed(s, 90) == "1m"
+    assert runstate.elapsed(s, 3600) == "1h 00m"
+    assert runstate.elapsed(s, 4380) == "1h 13m"
+
+
+def test_elapsed_is_blank_before_a_run_starts():
+    assert runstate.elapsed(runstate.RunState(), 500) == ""
+
+
+def test_remaining_extrapolates_from_work_already_done():
+    s = runstate.RunState(started_at=0.0, queries_done=25, queries_total=100)
+    assert runstate.remaining(s, 600) == "30m"
+
+
+def test_remaining_is_blank_until_there_is_something_to_extrapolate_from():
+    s = runstate.RunState(started_at=0.0, queries_done=0, queries_total=100)
+    assert runstate.remaining(s, 600) == ""
+
+
+def test_remaining_is_blank_when_finished():
+    s = runstate.RunState(started_at=0.0, queries_done=100, queries_total=100)
+    assert runstate.remaining(s, 600) == ""
+
+
+def test_fill_rate_rows_follow_the_column_order_given():
+    records = [{"name": "A", "phone": "+1"}, {"name": "B", "phone": ""}]
+    rows = runstate.fill_rate_rows(records, ["name", "phone", "emails"])
+    assert rows == [("name", 1.0), ("phone", 0.5), ("emails", 0.0)]
+
+
+def test_fill_rate_rows_of_nothing_is_nothing():
+    assert runstate.fill_rate_rows([], ["name"]) == []
+
+
+def test_fill_rate_counts_a_legitimate_zero_as_filled():
+    rows = runstate.fill_rate_rows([{"reviews": 0}], ["reviews"])
+    assert rows == [("reviews", 1.0)], "0 reviews is real data, not a blank"
+
+
+def test_fold_does_not_mutate_the_containers_it_updates():
+    """The existing mutation test only checks an int, which can never alias.
+
+    This one exercises all four mutable containers, so a fold that forgot to
+    copy one would fail here instead of silently corrupting the caller's state.
+    """
+    s = runstate.initial_state(set(), TERMS, STATES)
+    coverage_before, log_before = dict(s.coverage), list(s.log)
+
+    runstate.fold(s, "query_failed", {"term": "padel club", "state": "Texas",
+                                      "error": "boom"})
+    runstate.fold(s, "listings_found", {"term": "padel club", "state": "Texas",
+                                        "count": 120, "at_cap": True})
+
+    assert s.coverage == coverage_before, "coverage must be copied, not updated in place"
+    assert s.failures == [], "failures must be copied, not appended to"
+    assert s.at_cap == [], "at_cap must be copied, not appended to"
+    assert s.log == log_before, "log must be copied, not appended to"
