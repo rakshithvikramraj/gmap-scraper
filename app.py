@@ -5,15 +5,39 @@ through an event queue this window drains on a timer. Nothing here may be
 called from the worker, because Tk is not thread-safe.
 """
 
+import os
 import queue
 import subprocess
 import sys
 import threading
 import time
-import tkinter as tk
-import tkinter.font as tkfont
 from pathlib import Path
-from tkinter import ttk
+
+
+def _ensure_tcl_paths() -> None:
+    """Point Tk at the Tcl/Tk that ships with this interpreter.
+
+    uv's standalone CPython bundles Tcl/Tk but sets neither TCL_LIBRARY nor
+    TK_LIBRARY, so tkinter reports "Tcl wasn't installed properly" on a launch
+    that does not already carry them. Deriving the paths from sys.base_prefix
+    keeps this portable: every uv-installed Python lays them out the same way,
+    and an environment that already sets them is left alone.
+    """
+    lib = Path(sys.base_prefix) / "lib"
+    for variable, folder in (("TCL_LIBRARY", "tcl8.6"), ("TK_LIBRARY", "tk8.6")):
+        if not os.environ.get(variable):
+            candidate = lib / folder
+            if candidate.is_dir():
+                os.environ[variable] = str(candidate)
+
+
+_ensure_tcl_paths()
+
+# Deliberately below _ensure_tcl_paths(): TCL_LIBRARY/TK_LIBRARY must be set
+# before tkinter is imported, or this Tk build can't find its own init.tcl.
+import tkinter as tk  # noqa: E402
+import tkinter.font as tkfont  # noqa: E402
+from tkinter import messagebox, ttk  # noqa: E402
 
 import runstate
 import scrape
@@ -115,6 +139,7 @@ class App(tk.Tk):
         self._build_blocked()
         self._build_statusbar()
         self.show("setup")
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
     # -- chrome ------------------------------------------------------------
     def _build_toolbar(self):
@@ -387,7 +412,123 @@ class App(tk.Tk):
             pass
 
     def on_start(self):
-        pass  # Task 9
+        if self.worker and self.worker.is_alive():
+            return self.on_stop()
+
+        prefs = self.current_prefs()
+        if not prefs["terms"]:
+            messagebox.showwarning("No search terms",
+                                   "Add at least one search term before starting.")
+            return
+        settings.save(prefs, SETTINGS_PATH)
+        self.prefs = prefs
+
+        scrape.clear_stop()
+        records, done_pairs = scrape.read_cache()
+        self.state = runstate.initial_state(done_pairs, prefs["terms"], prefs["states"])
+        self.state.clubs = len(records)
+
+        scrape.subscribe(self._on_event)
+        self.worker = threading.Thread(target=self._run_worker, args=(prefs,),
+                                       daemon=True)
+        self.worker.start()
+
+        self.start_btn.set_text("Stop")
+        self.show("running")
+        self.render()
+        self.after(100, self._pump)
+
+    def on_stop(self):
+        """Ask the run to stop at the next listing boundary."""
+        scrape.request_stop()
+        self.start_btn.set_text("Stopping…")
+        self.start_btn.set_enabled(False)
+
+    # -- worker thread -----------------------------------------------------
+    def _on_event(self, kind, data):
+        """Called ON THE WORKER THREAD. Must only enqueue — never touch a widget."""
+        self.events.put((kind, data))
+
+    def _run_worker(self, prefs):
+        """The whole scrape, off the main thread.
+
+        Wraps everything: an exception here must reach the window as a crashed
+        run rather than killing a thread silently and leaving a spinner going
+        forever.
+        """
+        saw_blocked = {"hit": False}
+
+        def watch(kind, _data):
+            if kind == "blocked":
+                saw_blocked["hit"] = True
+
+        scrape.subscribe(watch)
+        reason = "done"
+        try:
+            scrape.run_stage1(
+                prefs["terms"], prefs["states"],
+                limit=prefs.get("limit"),
+                headless=not prefs["headed"],
+                force=prefs["force"],
+            )
+            if prefs["enrich"] and not scrape.stop_requested():
+                scrape.run_stage2(force=prefs["force"])
+            records, _ = scrape.read_cache()
+            scrape.write_csv(records)
+            if saw_blocked["hit"]:
+                reason = "blocked"
+            elif scrape.stop_requested():
+                reason = "stopped"
+        except Exception as exc:
+            reason = "crashed"
+            self.events.put(("query_failed", {
+                "term": "", "state": "the run",
+                "error": f"{type(exc).__name__}: {exc}",
+            }))
+        finally:
+            scrape.unsubscribe(watch)
+            self.events.put(("run_finished", {"reason": reason}))
+
+    # -- main thread -------------------------------------------------------
+    def _pump(self):
+        """Drain the queue, fold each event, repaint once. Main thread only."""
+        now = time.monotonic()
+        finished = False
+        for _ in range(500):
+            try:
+                kind, data = self.events.get_nowait()
+            except queue.Empty:
+                break
+            self.state = runstate.fold(self.state, kind, data, now=now)
+            if kind == "run_finished":
+                finished = True
+
+        self.render(now)
+
+        if finished:
+            self._finish()
+        elif (self.worker and self.worker.is_alive()) or not self.events.empty():
+            self.after(100, self._pump)
+
+    def _finish(self):
+        scrape.unsubscribe(self._on_event)
+        self.worker = None
+        self.start_btn.set_text("Start scrape")
+        self.start_btn.set_enabled(True)
+        self.show("results" if self.state.status == "finished" else "blocked")
+        self.render()
+
+    def on_close(self):
+        if self.worker and self.worker.is_alive():
+            if not messagebox.askokcancel(
+                "Stop the run?",
+                "A scrape is running. Everything found so far is already saved, "
+                "and the next run will pick up where this one stops.\n\n"
+                "Stop it and close?",
+            ):
+                return
+            scrape.request_stop()
+        self.destroy()
 
     def current_prefs(self) -> dict:
         return {
