@@ -817,7 +817,7 @@ def record_to_row(record: dict) -> list[str]:
 
 
 def row_range(row_number: int) -> str:
-    """A1 range covering every column of one row, e.g. "A2:X2"."""
+    """A1 range covering every column of one row, e.g. "A2:Y2"."""
     start = rowcol_to_a1(row_number, 1)
     end = rowcol_to_a1(row_number, len(COLUMNS))
     return f"{start}:{end}"
