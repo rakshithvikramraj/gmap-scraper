@@ -67,7 +67,8 @@ import scrape
 import selection
 import settings
 from theme import PALETTE
-from widgets import CoverageGrid, RoundedButton
+import widgets
+from widgets import CoverageGrid, CoverageSummary, RoundedButton
 
 SETTINGS_PATH = paths.data_dir() / "settings.json"
 
@@ -112,15 +113,20 @@ class App(tk.Tk):
         self._visible = "setup"
         self._rendered_minute = None
 
+        self._cost_strips = []
         self._build_toolbar()
+        # Before the body: pack gives the bottom edge to whoever claims it
+        # first, and an expanding body packed ahead of it squeezes it flat.
+        # It also has to exist before _paint_cost, which writes to it.
+        self._build_statusbar()
         self._body = ttk.Frame(self)
         self._body.pack(fill="both", expand=True)
         self._panels = {}
         self._build_setup()
+        self._build_locations()
         self._build_running()
         self._build_results()
         self._build_blocked()
-        self._build_statusbar()
         self.show("setup")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -221,6 +227,22 @@ class App(tk.Tk):
         RoundedButton(row, "Remove", self.on_remove_term, font=self.fonts["ui"],
                       height=26, pad_x=10).pack(side="left", padx=(6, 0))
 
+        places_box = ttk.Frame(top, padding=(14, 0, 0, 0))
+        places_box.pack(side="left", fill="y")
+        ttk.Label(places_box, text=theme.tracked("Locations"), style="Faint.TLabel",
+                  font=self.fonts["label"]).pack(anchor="w", pady=(0, 6))
+        self.places_rows = ttk.Frame(places_box, height=104)
+        self.places_rows.pack(fill="x")
+        self.places_rows.pack_propagate(False)
+        places_actions = ttk.Frame(places_box)
+        places_actions.pack(fill="x", pady=(6, 0))
+        RoundedButton(places_actions, "Choose locations",
+                      lambda: self._go("locations"), font=self.fonts["ui"],
+                      height=26, pad_x=10).pack(side="left")
+        self.places_count = ttk.Label(places_actions, text="", style="Faint.TLabel",
+                                      font=self.fonts["small"])
+        self.places_count.pack(side="left", padx=(9, 0))
+
         opts = ttk.Frame(top, padding=(22, 0, 0, 0))
         opts.pack(side="left", fill="both", expand=True)
         ttk.Label(opts, text=theme.tracked("Options"), style="Faint.TLabel",
@@ -229,9 +251,9 @@ class App(tk.Tk):
         self.var_headed = tk.BooleanVar(value=self.prefs["headed"])
         self.var_force = tk.BooleanVar(value=self.prefs["force"])
         for text, var in (
-            ("Look up contact details on club websites", self.var_enrich),
+            ("Look up contact details on business websites", self.var_enrich),
             ("Show the browser while it works", self.var_headed),
-            ("Re-scrape states already finished", self.var_force),
+            ("Re-scrape places already finished", self.var_force),
         ):
             ttk.Checkbutton(opts, text=text, variable=var).pack(anchor="w", pady=2)
 
@@ -246,30 +268,404 @@ class App(tk.Tk):
         self.limit_spin = ttk.Spinbox(limit_row, from_=1, to=120, width=4,
                                       font=self.fonts["mono"], state="readonly")
         self.limit_spin.set(self.prefs.get("limit") or 3)
+        self.limit_spin.configure(command=self._paint_cost)
         self.limit_spin.pack(side="left", padx=6)
-        ttk.Label(limit_row, text="clubs per state").pack(side="left")
+        # Wording only -- the mechanism is unchanged. It follows the most
+        # specific level in the selection, because "per state" is a lie when
+        # the run is aimed at six cities inside one.
+        self.cap_label = ttk.Label(limit_row, text="businesses per place")
+        self.cap_label.pack(side="left")
+
+        self.cost_setup = self._build_cost(panel)
+        self.cost_setup.pack(fill="x", pady=(14, 0))
+        # After the cost strip, not beside the spinbox: _sync_limit repaints
+        # the estimate, and the estimate's labels are built just above.
         self._sync_limit()
 
-        ttk.Label(opts, wraplength=520, style="Muted.TLabel", font=self.fonts["small"],
-                  text=("Paced to about 3 seconds per club, so a full run takes hours. "
-                        "You can close this window and pick it up later.")
-                  ).pack(anchor="w", pady=(10, 0))
-
         grid_head = ttk.Frame(panel)
-        grid_head.pack(fill="x", pady=(16, 6))
-        ttk.Label(grid_head, text=theme.tracked("Coverage"), style="Faint.TLabel",
-                  font=self.fonts["label"]).pack(side="left")
+        grid_head.pack(fill="x", pady=(14, 6))
+        self.coverage_head = ttk.Label(grid_head, style="Faint.TLabel",
+                                       font=self.fonts["label"])
+        self.coverage_head.pack(side="left")
         self.legend = ttk.Label(grid_head, style="Muted.TLabel", font=self.fonts["small"],
                                 text="finished · partly done · failed · not started")
         self.legend.pack(side="right")
 
-        self.grid_setup = CoverageGrid(panel, scrape.ALL_50, font=self.fonts["cell"])
-        self.grid_setup.pack(fill="x")
-        self.grid_setup.update_coverage(self.run_state.coverage)
+        self.grid_setup, self.summary_setup = self._build_coverage(panel)
+
+    # -- shared pieces -----------------------------------------------------
+    def _build_cost(self, parent):
+        """A run-cost strip, registered so `_paint_cost` repaints every one.
+
+        Setup and the selector both show this. Binding the labels to `self`
+        would mean the second strip built silently stole the first one's
+        names, leaving that strip frozen on its construction defaults -- so
+        each strip keeps its own labels and joins a list instead.
+        """
+        strip = ttk.Frame(parent, style="Panel.TFrame", padding=(14, 10))
+        queries = ttk.Label(strip, text="0", font=self.fonts["big"],
+                            background=PALETTE["panel"])
+        queries.pack(side="left")
+        ttk.Label(strip, text=theme.tracked("searches"), style="Faint.TLabel",
+                  font=self.fonts["label"], background=PALETTE["panel"]
+                  ).pack(side="left", padx=(9, 0))
+        hours = ttk.Label(strip, text="—", font=self.fonts["big"],
+                          style="Lime.TLabel", background=PALETTE["panel"])
+        hours.pack(side="left", padx=(20, 0))
+        ttk.Label(strip, text=theme.tracked("estimated"), style="Faint.TLabel",
+                  font=self.fonts["label"], background=PALETTE["panel"]
+                  ).pack(side="left", padx=(9, 0))
+        detail = ttk.Label(strip, text="", style="Muted.TLabel",
+                           font=self.fonts["small"], background=PALETTE["panel"])
+        detail.pack(side="left", padx=(18, 0))
+        self._cost_strips.append((queries, hours, detail))
+        return strip
+
+    def _build_coverage(self, parent):
+        """A grid and a summary. Which one is packed depends on the selection."""
+        grid = CoverageGrid(parent, cell_font=self.fonts["cell"],
+                            label_font=self.fonts["label"])
+        summary = CoverageSummary(parent, font=self.fonts["ui"],
+                                  note_font=self.fonts["note"])
+        return grid, summary
+
+    def _limit_value(self):
+        try:
+            return int(self.limit_spin.get()) if self.var_limited.get() else None
+        except (TypeError, ValueError):
+            return None
+
+    def _terms(self):
+        return list(self.terms_list.get(0, "end"))
+
+    def _paint_cost(self, *_args) -> None:
+        """The run-cost line, everywhere it appears."""
+        terms = self._terms()
+        leaves = geo.leaf_count(self.selection)
+        cap = self._limit_value()
+        queries, seconds = runstate.estimate_run(len(terms), leaves, cap)
+        hours = seconds / 3600
+        at_least = "" if cap else "\u2265"
+        if not queries:
+            spent = "—"
+        elif hours >= 1:
+            spent = f"{at_least}{hours:.0f}h"
+        else:
+            spent = f"{at_least}{seconds / 60:.0f}m"
+
+        per = f"capped at {cap} businesses each" if cap else "no cap"
+        detail = f"{len(terms)} search terms × {leaves:,} places, {per}"
+        if cap:
+            detail += f" · up to {queries * cap:,} leads"
+        if hours > 24:
+            detail += "  ·  consider narrowing"
+
+        for queries_label, hours_label, detail_label in self._cost_strips:
+            queries_label.configure(text=f"{queries:,}")
+            # Past a day the number stops reassuring and starts warning, so it
+            # changes colour rather than being buried in the detail line.
+            hours_label.configure(
+                text=spent, style="Amber.TLabel" if hours > 24 else "Lime.TLabel")
+            detail_label.configure(text=detail)
+
+        self.cap_label.configure(
+            text=f"businesses per {selection.cap_noun(self.selection)}")
+        self.places_count.configure(text=f"{leaves:,} places")
+        if self.worker is None:
+            self.start_btn.set_enabled(bool(terms and leaves))
+            self.status_right.configure(
+                text="" if leaves else "Choose at least one location")
+
+    def _paint_locations(self) -> None:
+        """The Locations box on the setup panel, rebuilt from the selection."""
+        for child in self.places_rows.winfo_children():
+            child.destroy()
+        lines = selection.summary(self.selection)
+        if not lines:
+            ttk.Label(self.places_rows, text="Nothing selected yet",
+                      style="Faint.TLabel", font=self.fonts["small"]
+                      ).pack(anchor="w", pady=2)
+        for country, detail in lines[:4]:
+            row = ttk.Frame(self.places_rows)
+            row.pack(fill="x", pady=1)
+            ttk.Label(row, text=country, font=self.fonts["ui"]).pack(side="left")
+            ttk.Label(row, text=detail, style="Faint.TLabel",
+                      font=self.fonts["small"]).pack(side="right")
+        if len(lines) > 4:
+            ttk.Label(self.places_rows, text=f"+{len(lines) - 4} more countries",
+                      style="Faint.TLabel", font=self.fonts["small"]
+                      ).pack(anchor="w", pady=1)
+
+    def _paint_coverage(self, grid, summary, headline=None) -> None:
+        """Draw the coverage of whichever panel asked, at whichever size fits."""
+        keys = selection.region_keys(self.selection)
+        # Counted over the cells actually being drawn, not over run_state's
+        # whole coverage dict: that dict was seeded from the selection as it
+        # stood when the window opened, so after an edit it reports the old
+        # total against the new grid.
+        shown = {region: self.run_state.coverage.get(region, "pending")
+                 for _, region in keys}
+        done, total = runstate.coverage_tally(shown)
+        if len(keys) > widgets.LARGE_SELECTION:
+            grid.pack_forget()
+            summary.pack(fill="x")
+            summary.set_rows(runstate.country_tally(keys, self.run_state.coverage))
+            text = (f"— {done} of {total} states complete, across "
+                    f"{len({c for c, _ in keys})} countries")
+        else:
+            summary.pack_forget()
+            grid.pack(fill="x")
+            groups = []
+            for country, region in keys:
+                label = (geo.abbreviate(country, region) if region != country
+                         else country)
+                if groups and groups[-1][0] == country:
+                    groups[-1][1].append((region, label))
+                else:
+                    groups.append((country, [(region, label)]))
+            grid.set_groups(groups)
+            grid.update_coverage(self.run_state.coverage,
+                                 self.run_state.term_status, self._terms())
+            text = (f"— {done} of {total} states finished" if done
+                    else "— nothing started")
+        if headline is not None:
+            # Only the label is tracked. Threading thin spaces through a whole
+            # sentence, which is what the mockup's CSS letter-spacing does at
+            # a much smaller ratio, is unreadable at this size.
+            headline.configure(text=f"{theme.tracked('Coverage')}   {text}")
 
     def _sync_limit(self) -> None:
         self.limit_spin.configure(
             state="readonly" if self.var_limited.get() else "disabled")
+        self._paint_cost()
+
+    # -- locations panel ---------------------------------------------------
+    def _build_locations(self):
+        """The country -> state -> city selector.
+
+        Three cascading panes plus a summary, over one `Selection` this panel
+        edits through `selection`'s pure functions. The panes never hold a
+        selection of their own: they cascade, and a pane's own state is
+        destroyed every time it repopulates.
+        """
+        panel = ttk.Frame(self._body, padding=(16, 12))
+        self._panels["locations"] = panel
+
+        self._pick_country = ""
+        self._pick_region = ""
+        self._search = ""
+        self._hits = {}
+
+        head = ttk.Frame(panel)
+        head.pack(fill="x", pady=(0, 10))
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add("write", self._on_search)
+        entry = ttk.Entry(head, textvariable=self.search_var, font=self.fonts["ui"])
+        entry.pack(side="left", fill="x", expand=True)
+        entry.bind("<Escape>", lambda _e: self.search_var.set(""))
+        self.search_hint = ttk.Label(
+            head, style="Faint.TLabel", font=self.fonts["small"],
+            text="Search any country, state or city")
+        self.search_hint.pack(side="left", padx=(12, 0))
+        RoundedButton(head, "Clear all", self._clear_selection,
+                      font=self.fonts["ui"], height=26, pad_x=10
+                      ).pack(side="right", padx=(10, 0))
+        RoundedButton(head, "Done", lambda: self._go("setup"), kind="primary",
+                      font=self.fonts["button"], height=30, pad_x=18
+                      ).pack(side="right")
+
+        panes = ttk.Frame(panel, style="Panel.TFrame", padding=1)
+        panes.pack(fill="both", expand=True)
+
+        def pane(width, title):
+            box = ttk.Frame(panes, style="Panel.TFrame", width=width)
+            box.pack(side="left", fill="y")
+            box.pack_propagate(False)
+            bar = ttk.Frame(box, style="Panel.TFrame", padding=(12, 7))
+            bar.pack(fill="x")
+            ttk.Label(bar, text=theme.tracked(title), style="Faint.TLabel",
+                      font=self.fonts["label"], background=PALETTE["panel"]
+                      ).pack(side="left")
+            subtitle = ttk.Label(bar, text="", style="Faint.TLabel",
+                                 font=self.fonts["small"],
+                                 background=PALETTE["panel"])
+            subtitle.pack(side="right")
+            body = ttk.Frame(box, style="Panel.TFrame")
+            body.pack(fill="both", expand=True)
+            return body, subtitle
+
+        def picker(parent, on_toggle, on_highlight):
+            bar = ttk.Scrollbar(parent, orient="vertical")
+            bar.pack(side="right", fill="y")
+            widget = widgets.PickList(parent, font=self.fonts["row"],
+                                      note_font=self.fonts["note"],
+                                      on_toggle=on_toggle,
+                                      on_highlight=on_highlight)
+            widget.pack(side="left", fill="both", expand=True)
+            widget.configure_scrollbar(bar)
+            return widget
+
+        body, self.head_country = pane(250, "Country")
+        self.pane_country = picker(body, self._toggle_country, self._focus_country)
+        body, self.head_region = pane(250, "State")
+        self.pane_region = picker(body, self._toggle_region, self._focus_region)
+        body, self.head_city = pane(250, "City")
+        self.pane_city = picker(body, self._toggle_city, lambda _n: None)
+
+        chosen = ttk.Frame(panes, style="Panel.TFrame", padding=(14, 7))
+        chosen.pack(side="left", fill="both", expand=True)
+        ttk.Label(chosen, text=theme.tracked("Selected"), style="Faint.TLabel",
+                  font=self.fonts["label"], background=PALETTE["panel"]
+                  ).pack(anchor="w")
+        self.chosen_rows = ttk.Frame(chosen, style="Panel.TFrame")
+        self.chosen_rows.pack(fill="both", expand=True, pady=(8, 0))
+        ttk.Label(chosen, style="Faint.TLabel", font=self.fonts["small"],
+                  background=PALETTE["panel"], wraplength=230,
+                  text="An empty level means all of it. No cities picked "
+                       "searches the whole state."
+                  ).pack(anchor="w", pady=(8, 0))
+
+        self.cost_locations = self._build_cost(panel)
+        self.cost_locations.pack(fill="x", pady=(10, 0))
+
+    # -- locations: state -> screen ---------------------------------------
+    def _on_search(self, *_args) -> None:
+        self._search = self.search_var.get().strip()
+        self.search_hint.configure(
+            text="Search any country, state or city" if not self._search
+            else f"{len(geo.search_places(self._search))} matches")
+        self._paint_panes()
+
+    def _clear_selection(self) -> None:
+        self.selection = {}
+        self._paint_panes()
+
+    def _is_on(self, place) -> bool:
+        """Whether `place` is already selected, at whatever level it names."""
+        if place.city:
+            return selection.is_city_on(self.selection, place.country,
+                                        place.region, place.city)
+        if place.region:
+            return selection.is_region_on(self.selection, place.country,
+                                          place.region)
+        return selection.is_country_on(self.selection, place.country)
+
+    def _focus_country(self, name) -> None:
+        self._pick_country = name
+        self._pick_region = ""
+        self.pane_region.set_current("")
+        self.pane_city.set_current("")
+        self._paint_panes()
+
+    def _focus_region(self, name) -> None:
+        self._pick_region = name
+        self.pane_city.set_current("")
+        self._paint_panes()
+
+    def _toggle_country(self, name) -> None:
+        # In search mode the country pane holds flat results at every level,
+        # so the row name is a Place label rather than a country.
+        if self._search:
+            place = self._hits.get(name)
+            if place is not None:
+                self.selection = selection.toggle_place(self.selection, place)
+            return self._paint_panes()
+        self._pick_country = name
+        self.selection = selection.toggle_country(self.selection, name)
+        self._paint_panes()
+
+    def _toggle_region(self, name) -> None:
+        if not self._pick_country:
+            return
+        self._pick_region = name
+        self.selection = selection.toggle_region(
+            self.selection, self._pick_country, name)
+        self._paint_panes()
+
+    def _toggle_city(self, name) -> None:
+        if not (self._pick_country and self._pick_region):
+            return
+        self.selection = selection.toggle_city(
+            self.selection, self._pick_country, self._pick_region, name)
+        self._paint_panes()
+
+    def _paint_panes(self) -> None:
+        """Repaint all three panes plus the summary from self.selection.
+
+        One method, not three: the panes cascade, and a partial repaint is how
+        the state pane ends up listing one country's regions under another
+        country's header.
+        """
+        if self._search:
+            self._paint_search()
+            return
+        self.pane_country.set_rows([
+            widgets.Row(name, selection.country_note(self.selection, name),
+                        selection.is_country_on(self.selection, name))
+            for name in geo.countries()])
+        country = self._pick_country
+        self.pane_region.set_rows([
+            widgets.Row(name, selection.region_note(self.selection, country, name),
+                        selection.is_region_on(self.selection, country, name))
+            for name in geo.regions(country)] if country else [])
+        region = self._pick_region
+        # The city pane's note column is empty on purpose. geodata stores
+        # cities in population order but not the populations themselves, so
+        # the figure the mockup shows does not exist -- the order carries the
+        # ranking, and the pane header says so.
+        self.pane_city.set_rows([
+            widgets.Row(name, "",
+                        selection.is_city_on(self.selection, country, region, name))
+            for name in geo.cities(country, region)] if region else [])
+        self.head_country.configure(
+            text=f"{len(self.selection)} / {len(geo.countries())}")
+        self.head_region.configure(text=country or "—")
+        self.head_city.configure(
+            text=f"{region} · most populous first" if region else "—")
+        self._paint_chosen()
+        self._paint_cost()
+
+    def _paint_search(self) -> None:
+        """Replace the three panes with one flat list of matches.
+
+        Rows are keyed by `Place.label()`, so `_hits` can turn the name the
+        widget hands back into the Place that produced it. A PickList row
+        knows only its own name -- resolving it here keeps the widget free of
+        any idea what a place is.
+        """
+        hits = geo.search_places(self._search)
+        self._hits = {place.label(): place for place in hits}
+        self.pane_country.set_rows([
+            widgets.Row(place.label(), place.parts()[0], self._is_on(place))
+            for place in hits])
+        self.pane_region.set_rows([])
+        self.pane_city.set_rows([])
+        self.head_country.configure(text=f"{len(hits)} matches")
+        self.head_region.configure(text="—")
+        self.head_city.configure(text="—")
+        self._paint_chosen()
+        self._paint_cost()
+
+    def _paint_chosen(self) -> None:
+        for child in self.chosen_rows.winfo_children():
+            child.destroy()
+        lines = selection.summary(self.selection)
+        if not lines:
+            ttk.Label(self.chosen_rows, text="Nothing selected yet",
+                      style="Faint.TLabel", font=self.fonts["small"],
+                      background=PALETTE["panel"]).pack(anchor="w")
+        for country, detail in lines[:9]:
+            row = ttk.Frame(self.chosen_rows, style="Panel.TFrame")
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=country, font=self.fonts["ui"],
+                      background=PALETTE["panel"]).pack(side="left")
+            ttk.Label(row, text=detail, style="Faint.TLabel",
+                      font=self.fonts["small"], background=PALETTE["panel"]
+                      ).pack(side="right")
+        if len(lines) > 9:
+            ttk.Label(self.chosen_rows, text=f"+{len(lines) - 9} more",
+                      style="Faint.TLabel", font=self.fonts["small"],
+                      background=PALETTE["panel"]).pack(anchor="w", pady=2)
 
     # -- running panel -----------------------------------------------------
     def _build_running(self):
@@ -295,11 +691,10 @@ class App(tk.Tk):
         ttk.Label(stats, style="Muted.TLabel", font=self.fonts["small"],
                   text="Progress is saved as it goes").pack(side="right")
 
-        ttk.Label(panel, text=theme.tracked("Coverage"), style="Faint.TLabel",
-                  font=self.fonts["label"]).pack(anchor="w", pady=(16, 6))
-        self.grid_running = CoverageGrid(panel, scrape.ALL_50, cell_h=40,
-                                         font=self.fonts["cell"])
-        self.grid_running.pack(fill="x")
+        self.coverage_head_running = ttk.Label(panel, style="Faint.TLabel",
+                                               font=self.fonts["label"])
+        self.coverage_head_running.pack(anchor="w", pady=(16, 6))
+        self.grid_running, self.summary_running = self._build_coverage(panel)
 
         ttk.Label(panel, text=theme.tracked("Activity"), style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(14, 6))
@@ -323,7 +718,7 @@ class App(tk.Tk):
         head.pack(fill="x")
         self.res_count = ttk.Label(head, text="", font=self.fonts["big"])
         self.res_count.pack(side="left")
-        ttk.Label(head, text="clubs saved", style="Muted.TLabel",
+        ttk.Label(head, text="businesses saved", style="Muted.TLabel",
                   font=self.fonts["ui"]).pack(side="left", padx=(9, 0), pady=(9, 0))
         self.res_summary = ttk.Label(head, text="", style="Muted.TLabel",
                                      font=self.fonts["small"])
@@ -339,7 +734,7 @@ class App(tk.Tk):
         cols = ("name", "where", "phone", "email", "rating")
         self.table = ttk.Treeview(body, columns=cols, show="headings", height=12)
         for col, title, width in (
-            ("name", "Club", 280), ("where", "Where", 150), ("phone", "Phone", 130),
+            ("name", "Business", 280), ("where", "Where", 150), ("phone", "Phone", 130),
             ("email", "Email", 220), ("rating", "Rating", 90),
         ):
             self.table.heading(col, text=title)
@@ -377,7 +772,7 @@ class App(tk.Tk):
         self.blocked_body.pack(anchor="w", pady=(6, 0))
         ttk.Label(card, background=PALETTE["field"], font=self.fonts["small"],
                   wraplength=700, foreground=PALETTE["lime_ink"],
-                  text=("Nothing has been lost. Every club found so far is already "
+                  text=("Nothing has been lost. Every business found so far is already "
                         "written to disk, so continuing picks up where it stopped.")
                   ).pack(anchor="w", pady=(10, 0))
 
@@ -390,11 +785,10 @@ class App(tk.Tk):
                       lambda: self._go("results"), font=self.fonts["ui"],
                       height=30, bg=PALETTE["field"]).pack(side="left", padx=(9, 0))
 
-        ttk.Label(panel, text=theme.tracked("Where It Got To"), style="Faint.TLabel",
-                  font=self.fonts["label"]).pack(anchor="w", pady=(18, 6))
-        self.grid_blocked = CoverageGrid(panel, scrape.ALL_50, cell_h=40,
-                                         font=self.fonts["cell"])
-        self.grid_blocked.pack(fill="x")
+        self.coverage_head_blocked = ttk.Label(panel, style="Faint.TLabel",
+                                               font=self.fonts["label"])
+        self.coverage_head_blocked.pack(anchor="w", pady=(18, 6))
+        self.grid_blocked, self.summary_blocked = self._build_coverage(panel)
         self.blocked_detail = ttk.Label(panel, text="", style="Muted.TLabel",
                                         font=self.fonts["small"], wraplength=1040)
         self.blocked_detail.pack(anchor="w", pady=(10, 0))
@@ -405,10 +799,12 @@ class App(tk.Tk):
         if term and term not in self.terms_list.get(0, "end"):
             self.terms_list.insert("end", term)
             self.term_entry.delete(0, "end")
+            self._paint_cost()
 
     def on_remove_term(self):
         for index in reversed(self.terms_list.curselection()):
             self.terms_list.delete(index)
+        self._paint_cost()
 
     def on_open_folder(self):
         folder = Path(scrape.CSV_PATH).parent.resolve()
@@ -623,14 +1019,15 @@ class App(tk.Tk):
             left = runstate.remaining(s, now)
             self.run_counts.configure(
                 text=f"{s.queries_done} of {s.queries_total} searches   ·   "
-                     f"{s.clubs} clubs saved   ·   {runstate.elapsed(s, now)} elapsed"
+                     f"{s.clubs} businesses saved   ·   {runstate.elapsed(s, now)} elapsed"
                      + (f"   ·   about {left} left" if left else ""))
-            self.grid_running.update_coverage(s.coverage)
+            self._paint_coverage(self.grid_running, self.summary_running,
+                                 self.coverage_head_running)
             self.log_box.configure(state="normal")
             self.log_box.delete("1.0", "end")
             self.log_box.insert("1.0", "\n".join(s.log[-7:]))
             self.log_box.configure(state="disabled")
-            self.status_detail.configure(text=f"{s.clubs} clubs")
+            self.status_detail.configure(text=f"{s.clubs} businesses")
             self.status_right.configure(text="Safe to close — picks up where it left off")
 
         elif self._visible == "results":
@@ -638,18 +1035,18 @@ class App(tk.Tk):
             self.res_summary.configure(
                 text=f"Finished in {runstate.elapsed(s, now)} · "
                      f"{s.queries_done} of {s.queries_total} searches")
-            # "partial" is not evidence of the 120-result cap: a per-state
+            # "partial" is not evidence of the 120-result cap: a per-place
             # limit makes every query incomplete, which used to announce that
             # all 50 states hit a cap none of them reached. at_cap is the real
             # signal and was already folded.
             partial = [st for st, v in s.coverage.items() if v == "partial"]
             if s.at_cap:
-                warning = (f"{len(s.at_cap)} states hit Google's 120-result limit "
+                warning = (f"{len(s.at_cap)} places hit Google's 120-result limit "
                            f"({', '.join(s.at_cap[:4])}) — searching those by city "
                            "would find more.")
             elif partial:
-                warning = (f"{len(partial)} states are only partly covered "
-                           f"({', '.join(partial[:4])}) — re-run without a per-state "
+                warning = (f"{len(partial)} places are only partly covered "
+                           f"({', '.join(partial[:4])}) — re-run without a per-place "
                            "limit to finish them.")
             else:
                 warning = ""
@@ -669,19 +1066,27 @@ class App(tk.Tk):
                       "Three searches failed one after another, which usually means "
                       "Google wants someone to prove they are not a robot. The run "
                       "paused itself rather than keep hammering the site."))
-            self.grid_blocked.update_coverage(s.coverage)
+            self._paint_coverage(self.grid_blocked, self.summary_blocked,
+                                 self.coverage_head_blocked)
             failed = [st for st, v in s.coverage.items() if v == "failed"]
             self.blocked_detail.configure(
                 text=(f"{', '.join(failed)} failed and will be tried again next run."
                       if failed else ""))
-            self.status_detail.configure(text=f"{s.clubs} clubs saved")
+            self.status_detail.configure(text=f"{s.clubs} businesses saved")
             self.status_right.configure(text="Waiting for you")
 
-        else:
-            self.grid_setup.update_coverage(s.coverage)
+        elif self._visible == "locations":
+            self._paint_panes()
             self.status_detail.configure(
-                text=f"{s.queries_total} searches queued · {s.clubs} clubs cached")
-            self.status_right.configure(text="")
+                text=f"{geo.leaf_count(self.selection)} places selected")
+
+        else:
+            self._paint_locations()
+            self._paint_cost()
+            self._paint_coverage(self.grid_setup, self.summary_setup,
+                                 self.coverage_head)
+            self.status_detail.configure(
+                text=f"{s.queries_total} searches queued · {s.clubs} businesses cached")
 
     def _fill_table(self, records):
         for row in self.table.get_children():
