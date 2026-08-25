@@ -448,3 +448,71 @@ def read_cache(path: Path | None = None) -> tuple[list[dict], set[tuple[str, str
             elif kind == "pair":
                 pairs.add((obj.get("term", ""), obj.get("state", "")))
     return (list(records.values()), pairs)
+
+
+ADDRESS_PREFIX_RE = re.compile(r"^\s*Address:\s*", re.I)
+RATING_VALUE_RE = re.compile(r"\b(\d(?:\.\d)?)\b")
+REVIEWS_PAREN_RE = re.compile(r"\(([\d,]+)\)")
+REVIEWS_WORD_RE = re.compile(r"([\d,]+)\s*review", re.I)
+
+
+def clean_address_label(label: str) -> str:
+    """Address text from a Maps aria-label, minus the "Address:" prefix."""
+    return ADDRESS_PREFIX_RE.sub("", label or "").strip()
+
+
+def phone_from_item_id(item_id: str) -> str:
+    """Normalized phone number from a data-item-id of "phone:tel:...."."""
+    if not item_id:
+        return ""
+    return normalize_phone(item_id.split("phone:tel:")[-1])
+
+
+def parse_rating_block(block: str) -> tuple[float | None, int]:
+    """(rating, review_count) from the Maps header text, e.g. "4.8(127)"."""
+    if not block:
+        return (None, 0)
+    rating_match = RATING_VALUE_RE.search(block)
+    rating = float(rating_match.group(1)) if rating_match else None
+    reviews_match = REVIEWS_PAREN_RE.search(block) or REVIEWS_WORD_RE.search(block)
+    reviews = int(reviews_match.group(1).replace(",", "")) if reviews_match else 0
+    return (rating, reviews)
+
+
+def build_record(raw: dict, term: str, state: str, now: str) -> dict:
+    """A fully shaped record with every COLUMNS key present.
+
+    `place_key` is guaranteed non-empty: when a Maps URL carries no feature id,
+    the name and coordinates stand in. `read_cache` deduplicates on this key and
+    buckets every falsy key together, so an empty one would silently collapse
+    unrelated clubs into a single row. The invariant is enforced here, at the
+    only place records are created, rather than guarded again downstream.
+    """
+    url = raw.get("url", "")
+    address = clean_address_label(raw.get("address_label", ""))
+    city, state_code, postcode = split_address(address)
+    latitude, longitude = parse_latlng(url)
+    rating, reviews = parse_rating_block(raw.get("rating_block", ""))
+    name = (raw.get("name") or "").strip()
+
+    record = {column: "" for column in COLUMNS}
+    record.update({
+        "place_key": parse_place_key(url) or f"{name}|{latitude},{longitude}",
+        "name": name,
+        "category": (raw.get("category") or "").strip(),
+        "address": address,
+        "city": city,
+        "state": state_code,
+        "zip": postcode,
+        "phone": phone_from_item_id(raw.get("phone_item_id", "")),
+        "website": raw.get("website", "") or "",
+        "rating": rating if rating is not None else "",
+        "reviews": reviews,
+        "latitude": latitude if latitude is not None else "",
+        "longitude": longitude if longitude is not None else "",
+        "maps_url": url,
+        "search_term": term,
+        "search_state": state,
+        "scraped_at": now,
+    })
+    return record

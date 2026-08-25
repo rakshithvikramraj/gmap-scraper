@@ -290,3 +290,69 @@ def test_utc_now_is_iso_8601():
     from datetime import datetime
 
     datetime.fromisoformat(scrape.utc_now())
+
+
+def test_clean_address_label_strips_prefix():
+    label = "Address: 1234 Main St, Austin, TX 78701, United States"
+    assert scrape.clean_address_label(label) == (
+        "1234 Main St, Austin, TX 78701, United States"
+    )
+
+
+def test_clean_address_label_passthrough_and_empty():
+    assert scrape.clean_address_label("500 Padel Way") == "500 Padel Way"
+    assert scrape.clean_address_label("") == ""
+
+
+def test_phone_from_item_id():
+    assert scrape.phone_from_item_id("phone:tel:+1 512-555-0100") == "+15125550100"
+    assert scrape.phone_from_item_id("") == ""
+
+
+def test_parse_rating_block_variants():
+    assert scrape.parse_rating_block("4.8(127)") == (4.8, 127)
+    assert scrape.parse_rating_block("4.8\n(1,204)") == (4.8, 1204)
+    assert scrape.parse_rating_block("5.0 stars 3 reviews") == (5.0, 3)
+    assert scrape.parse_rating_block("") == (None, 0)
+    assert scrape.parse_rating_block("No reviews") == (None, 0)
+
+
+def test_build_record_shapes_every_column():
+    raw = {
+        "url": (
+            "https://www.google.com/maps/place/Austin+Padel/"
+            "data=!4m6!1s0x864b1a:0x9fe1!3d30.2672!4d-97.7431"
+        ),
+        "name": "Austin Padel Club",
+        "category": "Padel club",
+        "address_label": "Address: 1234 Main St, Austin, TX 78701, United States",
+        "phone_item_id": "phone:tel:+1 512-555-0100",
+        "website": "https://austinpadel.com",
+        "rating_block": "4.8(127)",
+    }
+    record = scrape.build_record(raw, "padel club", "Texas", "2026-08-24T00:00:00+00:00")
+
+    assert set(record) == set(scrape.COLUMNS)
+    assert record["place_key"] == "0x864b1a:0x9fe1"
+    assert record["name"] == "Austin Padel Club"
+    assert record["city"] == "Austin"
+    assert record["state"] == "TX"
+    assert record["zip"] == "78701"
+    assert record["phone"] == "+15125550100"
+    assert record["rating"] == 4.8
+    assert record["reviews"] == 127
+    assert record["latitude"] == 30.2672
+    assert record["search_state"] == "Texas"
+
+
+def test_build_record_never_yields_an_empty_place_key():
+    record = scrape.build_record({}, "padel club", "Ohio", "2026-08-24T00:00:00+00:00")
+    assert record["place_key"]
+
+
+def test_build_record_falls_back_when_no_place_key():
+    raw = {"url": "https://www.google.com/maps", "name": "Nameless Club"}
+    record = scrape.build_record(raw, "padel club", "Utah", "2026-08-24T00:00:00+00:00")
+    assert record["place_key"] == "Nameless Club|None,None"
+    assert record["rating"] == ""
+    assert record["reviews"] == 0
