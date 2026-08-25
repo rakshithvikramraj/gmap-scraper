@@ -769,7 +769,7 @@ def test_fold_does_not_mutate_the_containers_it_updates():
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_runstate.py -k "elapsed or remaining or fill_rate" -v`
-Expected: 9 failures — 8 with `AttributeError: module 'runstate' has no attribute 'elapsed'`, plus the new mutation test, which fails only if `fold` copies incorrectly (it should already pass)
+Expected: 8 failures with `AttributeError: module 'runstate' has no attribute 'elapsed'`. The ninth new test, `test_fold_does_not_mutate_the_containers_it_updates`, does not match that `-k` filter and tests Task 2's `fold` rather than these functions — run it separately with `pytest tests/test_runstate.py -k mutate -v` and expect it to PASS already, since `fold` is correct. A failure there is a real bug worth reporting.
 
 - [ ] **Step 3: Write the implementation**
 
