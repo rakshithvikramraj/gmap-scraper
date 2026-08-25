@@ -58,16 +58,18 @@ STATES = ALL_50
 
 COLUMNS = [
     "place_key", "name", "category", "address", "city", "state", "zip",
-    "phone", "website", "rating", "reviews", "latitude", "longitude",
-    "maps_url", "emails", "owner_name", "owner_phone", "other_phones",
-    "instagram", "facebook", "linkedin", "search_term", "search_state",
-    "scraped_at", "enrich_error",
+    "country", "phone", "website", "rating", "reviews", "latitude",
+    "longitude", "maps_url", "emails", "owner_name", "owner_phone",
+    "other_phones", "instagram", "facebook", "linkedin", "search_term",
+    "search_country", "search_state", "search_city", "scraped_at",
+    "enrich_error",
 ]
 
 STAGE1_COLUMNS = [
     "place_key", "name", "category", "address", "city", "state", "zip",
-    "phone", "website", "rating", "reviews", "latitude", "longitude",
-    "maps_url", "search_term", "search_state", "scraped_at",
+    "country", "phone", "website", "rating", "reviews", "latitude",
+    "longitude", "maps_url", "search_term", "search_country", "search_state",
+    "search_city", "scraped_at",
 ]
 
 # Resolved rather than hardcoded: a frozen bundle has no working directory
@@ -584,7 +586,7 @@ def parse_rating_block(block: str) -> tuple[float | None, int]:
     return (rating, reviews)
 
 
-def build_record(raw: dict, term: str, state: str, now: str) -> dict:
+def build_record(raw: dict, term: str, place: "geo.Place", now: str) -> dict:
     """A fully shaped record with every STAGE1_COLUMNS key present.
 
     `place_key` is guaranteed non-empty: when a Maps URL carries no feature id,
@@ -595,7 +597,7 @@ def build_record(raw: dict, term: str, state: str, now: str) -> dict:
     """
     url = raw.get("url", "")
     address = clean_address_label(raw.get("address_label", ""))
-    city, state_code, postcode = split_address(address)
+    address_city, address_state, postcode = split_address(address)
     latitude, longitude = parse_latlng(url)
     rating, reviews = parse_rating_block(raw.get("rating_block", ""))
     name = (raw.get("name") or "").strip()
@@ -606,9 +608,13 @@ def build_record(raw: dict, term: str, state: str, now: str) -> dict:
         "name": name,
         "category": (raw.get("category") or "").strip(),
         "address": address,
-        "city": city,
-        "state": state_code,
+        # The query is authoritative: when we searched "in Mumbai", the city
+        # is an input, not something to infer from a foreign address format.
+        # Only a whole-region or whole-country run falls back to parsing.
+        "city": place.city or address_city,
+        "state": place.region or address_state,
         "zip": postcode,
+        "country": place.country,
         "phone": phone_from_item_id(raw.get("phone_item_id", "")),
         "website": raw.get("website", "") or "",
         "rating": rating if rating is not None else "",
@@ -617,7 +623,9 @@ def build_record(raw: dict, term: str, state: str, now: str) -> dict:
         "longitude": longitude if longitude is not None else "",
         "maps_url": url,
         "search_term": term,
-        "search_state": state,
+        "search_country": place.country,
+        "search_state": place.region,
+        "search_city": place.city,
         "scraped_at": now,
     })
     return record
@@ -763,7 +771,7 @@ def scrape_listing(page, url: str, term: str, place: "geo.Place") -> dict:
         "website": _attr(page, SELECTORS["website"], "href"),
         "rating_block": _text(page, SELECTORS["rating_block"]),
     }
-    return build_record(raw, term, place.query_text(), utc_now())
+    return build_record(raw, term, place, utc_now())
 
 
 def should_mark_done(failed: int, complete: bool) -> bool:

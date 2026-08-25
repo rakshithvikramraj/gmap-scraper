@@ -409,13 +409,15 @@ def test_build_record_shapes_every_column():
         "website": "https://austinpadel.com",
         "rating_block": "4.8(127)",
     }
-    record = scrape.build_record(raw, "padel club", "Texas", "2026-08-24T00:00:00+00:00")
+    place = geo.Place(country="United States", region="Texas")
+    record = scrape.build_record(raw, "padel club", place, "2026-08-24T00:00:00+00:00")
 
     assert set(record) == set(scrape.STAGE1_COLUMNS)
     assert record["place_key"] == "0x864b1a:0x9fe1"
     assert record["name"] == "Austin Padel Club"
     assert record["city"] == "Austin"
-    assert record["state"] == "TX"
+    # The query's region name wins over the address's two-letter code.
+    assert record["state"] == "Texas"
     assert record["zip"] == "78701"
     assert record["phone"] == "+15125550100"
     assert record["rating"] == 4.8
@@ -425,13 +427,15 @@ def test_build_record_shapes_every_column():
 
 
 def test_build_record_never_yields_an_empty_place_key():
-    record = scrape.build_record({}, "padel club", "Ohio", "2026-08-24T00:00:00+00:00")
+    place = geo.Place(country="United States", region="Ohio")
+    record = scrape.build_record({}, "padel club", place, "2026-08-24T00:00:00+00:00")
     assert record["place_key"]
 
 
 def test_build_record_falls_back_when_no_place_key():
     raw = {"url": "https://www.google.com/maps", "name": "Nameless Club"}
-    record = scrape.build_record(raw, "padel club", "Utah", "2026-08-24T00:00:00+00:00")
+    place = geo.Place(country="United States", region="Utah")
+    record = scrape.build_record(raw, "padel club", place, "2026-08-24T00:00:00+00:00")
     assert record["place_key"] == "Nameless Club|None,None"
     assert record["rating"] == ""
     assert record["reviews"] == 0
@@ -493,7 +497,7 @@ def test_record_to_row_renders_none_as_blank():
 
 
 def test_row_range_spans_every_column():
-    assert scrape.row_range(2) == "A2:Y2"
+    assert scrape.row_range(2) == "A2:AB2"
 
 
 def test_plan_upserts_appends_unknown_keys():
@@ -616,3 +620,52 @@ def test_search_url_of_an_empty_place_searches_the_bare_term():
     url = scrape.build_search_url("gym", geo.Place())
     assert "gym" in url
     assert "+in+" not in url
+
+
+def test_city_and_state_come_from_the_query_not_the_address():
+    # Parsing addresses correctly in every country is a large, low-value
+    # problem, and unnecessary: the query already said where we searched.
+    raw = {"url": "https://maps.google.com/?cid=1", "name": "A Gym",
+           "address_label": "Address: 12 Some Road, Whoknows"}
+    record = scrape.build_record(raw, "gym", geo.Place("India", "Maharashtra", "Mumbai"), "now")
+    assert record["city"] == "Mumbai"
+    assert record["state"] == "Maharashtra"
+    assert record["country"] == "India"
+
+
+def test_the_full_address_is_kept_verbatim():
+    raw = {"url": "https://maps.google.com/?cid=1", "name": "A Gym",
+           "address_label": "Address: 12 Some Road, Whoknows"}
+    record = scrape.build_record(raw, "gym", geo.Place("India", "Maharashtra", "Mumbai"), "now")
+    assert record["address"] == "12 Some Road, Whoknows"
+
+
+def test_a_whole_country_run_falls_back_to_the_address_for_city():
+    # No city was searched for, so the address is the only source there is.
+    raw = {"url": "https://maps.google.com/?cid=1", "name": "A Gym",
+           "address_label": "Address: 1 Main St, Austin, TX 78701"}
+    record = scrape.build_record(raw, "gym", geo.Place(country="United States"), "now")
+    assert record["city"] == "Austin"
+    assert record["country"] == "United States"
+
+
+def test_search_columns_record_what_was_asked_for():
+    record = scrape.build_record({"url": "", "name": "A"}, "gym",
+                                 geo.Place("India", "Maharashtra", "Mumbai"), "now")
+    assert record["search_term"] == "gym"
+    assert record["search_country"] == "India"
+    assert record["search_state"] == "Maharashtra"
+    assert record["search_city"] == "Mumbai"
+
+
+def test_search_city_is_empty_on_a_whole_region_run():
+    record = scrape.build_record({"url": "", "name": "A"}, "gym",
+                                 geo.Place("India", "Maharashtra"), "now")
+    assert record["search_city"] == ""
+
+
+def test_new_columns_are_in_both_column_lists():
+    # A column missing from STAGE1_COLUMNS is blanked by every re-scrape.
+    for column in ("country", "search_country", "search_city"):
+        assert column in scrape.COLUMNS
+        assert column in scrape.STAGE1_COLUMNS
