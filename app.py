@@ -64,6 +64,7 @@ from tkinter import messagebox, ttk  # noqa: E402
 
 import runstate
 import scrape
+import selection
 import settings
 from theme import PALETTE
 from widgets import CoverageGrid, RoundedButton
@@ -75,19 +76,6 @@ SETTINGS_PATH = paths.data_dir() / "settings.json"
 # block), and nothing else moves the panel behind their back.
 PANEL_FOR_STATUS = {"idle": "setup", "running": "running",
                     "finished": "results", "blocked": "blocked"}
-
-def _us_places(states):
-    """`geo.Place`s for a list of plain US state names from `prefs["states"]`.
-
-    The GUI still only lets someone pick US states, so every place it
-    searches is a US region; a later plan gives it a real country/state/city
-    selection and this seam goes away. Shared by `_run_worker` (what actually
-    gets searched) and the `runstate.initial_state` seeding calls (what the
-    coverage grid checks against the resume cache), so the two can never
-    disagree about which place a state name means.
-    """
-    return [geo.Place(country="United States", region=state) for state in states]
-
 
 class App(tk.Tk):
     def __init__(self):
@@ -101,14 +89,22 @@ class App(tk.Tk):
         theme.apply_theme(self)
 
         self.prefs = settings.load(SETTINGS_PATH)
+        # Prune once, at load: a selection saved against an older geodata may
+        # name a country or region this build no longer has. Dropping it is
+        # reported in the activity log and never blocks startup.
+        self.selection, dropped = selection.prune(self.prefs["selection"])
+        self._startup_notes = (
+            [f"Dropped {len(dropped)} place(s) this version no longer knows: "
+             + ", ".join(dropped[:6])] if dropped else [])
         records, done_pairs = scrape.read_cache()
         # Named run_state, not state: tk.Tk already has a public state()
         # method, and shadowing it would quietly remove the ability to call
         # it (e.g. with "zoomed") or to query the window state at all.
         self.run_state = runstate.initial_state(
-            done_pairs, self.prefs["terms"], _us_places(self.prefs["states"])
+            done_pairs, self.prefs["terms"], geo.leaf_places(self.selection)
         )
         self.run_state.clubs = len(records)
+        self.run_state.log.extend(self._startup_notes)
 
         self.events = queue.Queue()
         self.worker = None
@@ -442,7 +438,7 @@ class App(tk.Tk):
         scrape.clear_stop()
         records, done_pairs = scrape.read_cache()
         self.run_state = runstate.initial_state(
-            done_pairs, prefs["terms"], _us_places(prefs["states"])
+            done_pairs, prefs["terms"], geo.leaf_places(self.selection)
         )
         self.run_state.clubs = len(records)
         self._rendered_minute = None
@@ -484,7 +480,7 @@ class App(tk.Tk):
         scrape.subscribe(watch)
         reason = "done"
         try:
-            places = _us_places(prefs["states"])
+            places = geo.leaf_places(prefs["selection"])
             scrape.run_stage1(
                 prefs["terms"], places,
                 limit=prefs.get("limit"),
@@ -592,7 +588,7 @@ class App(tk.Tk):
             limit = None
         return {
             "terms": list(self.terms_list.get(0, "end")),
-            "states": list(scrape.ALL_50),
+            "selection": self.selection,
             "enrich": self.var_enrich.get(),
             "headed": self.var_headed.get(),
             "force": self.var_force.get(),

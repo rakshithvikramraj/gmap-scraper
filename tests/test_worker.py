@@ -40,7 +40,8 @@ def _run(monkeypatch, *, blocked=False, stopped=False, raises=False, enrich=True
     monkeypatch.setattr(scrape, "run_stage2", lambda *a, **k: calls.append("stage2"))
 
     stub = _Stub()
-    app.App._run_worker(stub, {"terms": ["t"], "states": ["s"], "limit": None,
+    app.App._run_worker(stub, {"terms": ["t"], "limit": None,
+                               "selection": {"United States": {"Texas": ["Austin"]}},
                                "headed": False, "force": False, "enrich": enrich})
     kinds = []
     while not stub.events.empty():
@@ -78,9 +79,32 @@ def test_enrichment_can_be_switched_off(monkeypatch):
 
 
 def test_the_worker_passes_places_not_state_names(monkeypatch):
-    # The GUI stores plain state names; run_stage1 takes geo.Place. Nothing
+    # The GUI stores a Selection dict; run_stage1 takes geo.Place. Nothing
     # else catches the mismatch, because run_stage1 is monkeypatched here.
     _, _, captured = _run(monkeypatch)
     assert all(isinstance(p, geo.Place) for p in captured["places"])
-    assert captured["places"][0].country == "United States"
-    assert captured["places"][0].region == "s"
+    assert captured["places"] == [
+        geo.Place(country="United States", region="Texas", city="Austin")]
+
+
+def test_the_worker_searches_every_place_the_selection_names(monkeypatch):
+    """A city-level selection must expand to one place per city."""
+    calls = []
+    monkeypatch.setattr(scrape, "read_cache", lambda *a, **k: ([], set()))
+    monkeypatch.setattr(scrape, "write_csv", lambda *a, **k: None)
+    monkeypatch.setattr(scrape, "stop_requested", lambda: False)
+    monkeypatch.setattr(scrape, "run_stage2", lambda *a, **k: None)
+    monkeypatch.setattr(scrape, "run_stage1",
+                        lambda terms, places, **kw: calls.append(places))
+    stub = _Stub()
+    app.App._run_worker(stub, {
+        "terms": ["gym"], "limit": None, "enrich": False,
+        "headed": False, "force": False,
+        "selection": {"United States": {"Texas": ["Houston", "Dallas"], "Utah": []},
+                      "Japan": {}}})
+    assert [p.query_text() for p in calls[0]] == [
+        "Japan",
+        "Houston, Texas, United States",
+        "Dallas, Texas, United States",
+        "Utah, United States",
+    ]

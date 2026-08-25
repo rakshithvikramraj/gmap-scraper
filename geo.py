@@ -127,3 +127,46 @@ def leaf_places(selection: Selection) -> list[Place]:
 def leaf_count(selection: Selection) -> int:
     """How many searches per term the selection implies."""
     return len(leaf_places(selection))
+
+
+MIN_QUERY = 2
+
+
+def search_places(query: str, limit: int = 200) -> list[Place]:
+    """Places whose name contains `query`, broadest and closest match first.
+
+    The selector's three panes cannot answer "where is Austin?" - you have to
+    know it is in Texas before you can find it. This scans all three levels at
+    once so the operator does not have to.
+
+    A linear scan over roughly 24,000 names, measured at about 15ms - inside
+    one frame, so it can run on every keystroke, and far cheaper to maintain
+    than the index that avoiding it would cost. If the city cap ever rises
+    well above 25 per region, measure again before assuming it still holds.
+    """
+    needle = query.strip().casefold()
+    if len(needle) < MIN_QUERY:
+        return []
+
+    hits: list[tuple[int, int, str, Place]] = []
+
+    def consider(name: str, place: Place) -> None:
+        folded = name.casefold()
+        position = folded.find(needle)
+        if position < 0:
+            return
+        # depth first (country before region before city), then a prefix
+        # match before a match buried mid-name, then alphabetically.
+        hits.append((len(place.parts()), 0 if position == 0 else 1, folded, place))
+
+    for country in geodata.COUNTRIES:
+        consider(country, Place(country=country))
+    for country, regions_of in geodata.REGIONS.items():
+        for region in regions_of:
+            consider(region, Place(country=country, region=region))
+    for (country, region), names in geodata.CITIES.items():
+        for city in names:
+            consider(city, Place(country=country, region=region, city=city))
+
+    hits.sort(key=lambda hit: hit[:3])
+    return [place for _, _, _, place in hits[:limit]]

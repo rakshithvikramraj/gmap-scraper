@@ -1,17 +1,21 @@
 """Remembered window preferences.
 
 Preferences only. This is not the resume cache: deleting this file loses no
-scraped data, only the operator's choice of search terms and states.
+scraped data, only the operator's choice of search terms and locations.
 """
 
 import json
 from pathlib import Path
 
 import scrape
+import selection
 
 DEFAULTS = {
     "terms": list(scrape.SEARCH_TERMS),
-    "states": list(scrape.STATES),
+    # Every US state individually, not {"United States": {}}. The whole
+    # country as one query would return 120 results for the entire US -- the
+    # exact cap this feature exists to work around.
+    "selection": selection.from_states(scrape.ALL_50),
     "enrich": True,
     "headed": False,
     "force": False,
@@ -27,6 +31,7 @@ def load(path: Path) -> dict:
     """
     prefs = {key: (list(value) if isinstance(value, list) else value)
              for key, value in DEFAULTS.items()}
+    prefs["selection"] = selection.normalise(DEFAULTS["selection"])
     try:
         stored = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -36,6 +41,12 @@ def load(path: Path) -> dict:
     for key in DEFAULTS:
         if key in stored:
             prefs[key] = stored[key]
+    # A preferences file written before geography targeting has a "states"
+    # list and no "selection". Read it as US regions rather than silently
+    # resetting someone's saved choice to the default.
+    if "selection" not in stored and isinstance(stored.get("states"), list):
+        prefs["selection"] = selection.from_states(stored["states"])
+    prefs["selection"] = selection.normalise(prefs["selection"])
     return prefs
 
 
