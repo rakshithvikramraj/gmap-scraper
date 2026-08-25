@@ -606,11 +606,19 @@ def clean_address_label(label: str) -> str:
     return ADDRESS_PREFIX_RE.sub("", label or "").strip()
 
 
-def phone_from_item_id(item_id: str) -> str:
-    """Normalized phone number from a data-item-id of "phone:tel:...."."""
+def phone_from_item_id(item_id: str, region: str = "US") -> str:
+    """Normalized phone number from a data-item-id of "phone:tel:....".
+
+    `region` is the ISO2 fallback normalize_phone falls back to for a number
+    with no country code of its own. The caller passes the place being
+    searched rather than leaving this at the US default -- otherwise a
+    locally-formatted listing phone outside the US normalizes to "" even
+    though the same digits are valid there, e.g. an Indian "022 2822 1234"
+    or a UK "020 7930 4832".
+    """
     if not item_id:
         return ""
-    return normalize_phone(item_id.split("phone:tel:")[-1])
+    return normalize_phone(item_id.split("phone:tel:")[-1], region)
 
 
 def parse_rating_block(block: str) -> tuple[float | None, int]:
@@ -653,7 +661,10 @@ def build_record(raw: dict, term: str, place: "geo.Place", now: str) -> dict:
         "state": place.region or address_state,
         "zip": postcode,
         "country": place.country,
-        "phone": phone_from_item_id(raw.get("phone_item_id", "")),
+        "phone": phone_from_item_id(
+            raw.get("phone_item_id", ""),
+            geo.country_code(place.country).upper() or "US",
+        ),
         "website": raw.get("website", "") or "",
         "rating": rating if rating is not None else "",
         "reviews": reviews,

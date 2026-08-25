@@ -443,6 +443,16 @@ def test_phone_from_item_id():
     assert scrape.phone_from_item_id("") == ""
 
 
+def test_phone_from_item_id_uses_the_given_region():
+    # phone_from_item_id was the last US-only phone path: it always called
+    # normalize_phone with the default "US", so a locally-formatted number
+    # outside the US normalized to "" even though it is a real number there.
+    assert scrape.phone_from_item_id("phone:tel:022 2822 1234", "IN") == "+912228221234"
+    assert scrape.phone_from_item_id("phone:tel:020 7930 4832", "GB") == "+442079304832"
+    # Unchanged behaviour: the same digits are not a valid US number.
+    assert scrape.phone_from_item_id("phone:tel:022 2822 1234") == ""
+
+
 def test_parse_rating_block_variants():
     assert scrape.parse_rating_block("4.8(127)") == (4.8, 127)
     assert scrape.parse_rating_block("4.8\n(1,204)") == (4.8, 1204)
@@ -494,6 +504,17 @@ def test_build_record_falls_back_when_no_place_key():
     assert record["place_key"] == "Nameless Club|None,None"
     assert record["rating"] == ""
     assert record["reviews"] == 0
+
+
+def test_build_record_normalizes_the_phone_for_the_place_being_searched():
+    # build_record already holds `place`, so it must thread the country
+    # through to phone_from_item_id rather than leaving it at the "US"
+    # default -- otherwise every non-US listing's phone column comes back
+    # blank even though the number is valid in that country.
+    raw = {"phone_item_id": "phone:tel:022 2822 1234"}
+    place = geo.Place(country="India", region="Maharashtra", city="Mumbai")
+    record = scrape.build_record(raw, "gym", place, "2026-08-24T00:00:00+00:00")
+    assert record["phone"] == "+912228221234"
 
 
 def test_extract_emails_rejects_escaped_mailto_artifacts():
