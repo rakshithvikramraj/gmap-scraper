@@ -124,11 +124,11 @@ def test_the_palette_carries_the_names_the_app_paints_with():
 
 
 def test_tracked_puts_a_thin_space_between_letters():
-    assert theme.tracked("AB") == "A B"
+    assert theme.tracked("AB") == "A\u2009B"
 
 
 def test_tracked_uppercases_so_callers_do_not_have_to():
-    assert theme.tracked("Coverage").startswith("C O")
+    assert theme.tracked("Coverage") == "C\u2009O\u2009V\u2009E\u2009R\u2009A\u2009G\u2009E"
 
 
 def test_tracked_leaves_a_single_character_alone():

@@ -65,3 +65,28 @@ def use_bundled_browsers() -> None:
     target = bundled_browsers()
     if target is not None:
         os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(target))
+
+
+FONT_DIR = "assets/fonts"
+
+
+def bundled_fonts() -> Path | None:
+    """The font directory inside a frozen bundle, or None outside one."""
+    root = getattr(sys, "_MEIPASS", None)
+    if not frozen() or root is None:
+        return None
+    target = Path(root) / FONT_DIR
+    return target if target.is_dir() else None
+
+
+def font_dir() -> Path:
+    """Where the shipped .ttf files live, frozen or from source.
+
+    Anchored on this module's own location rather than the working directory:
+    a frozen .app launched from Finder starts with cwd "/", and a relative
+    path would silently find nothing and drop the app to the fallback face.
+    """
+    bundled = bundled_fonts()
+    if bundled is not None:
+        return bundled
+    return Path(__file__).resolve().parent / FONT_DIR
