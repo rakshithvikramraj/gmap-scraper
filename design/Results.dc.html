@@ -1,0 +1,208 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; }
+    * { box-sizing: border-box; }
+    a { color: oklch(0.545 0.132 258); } a:hover { color: oklch(0.470 0.132 258); }
+    .win { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 13px;
+           color: oklch(0.285 0.010 95); -webkit-font-smoothing: antialiased; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+           color: oklch(0.615 0.008 95); }
+    .btn { height: 28px; padding: 0 14px; border-radius: 5px; border: 1px solid oklch(0.845 0.005 95);
+           background: oklch(0.995 0.002 95); font-size: 13px; color: oklch(0.285 0.010 95);
+           display: inline-flex; align-items: center; gap: 7px; }
+    .th { font-size: 11px; font-weight: 600; color: oklch(0.545 0.008 95); padding: 7px 10px;
+          text-align: left; border-bottom: 1px solid oklch(0.885 0.005 95); background: oklch(0.955 0.004 95); }
+    .td { padding: 8px 10px; border-bottom: 1px solid oklch(0.930 0.005 95); vertical-align: middle; }
+    .bar { height: 6px; background: oklch(0.910 0.005 95); flex-grow: 1; }
+    .fill { height: 100%; background: oklch(0.640 0.115 152); }
+    .fill-lo { background: oklch(0.760 0.130 78); }
+    .frow { display: flex; align-items: center; gap: 9px; font-size: 11.5px; padding: 2.5px 0; }
+    .fname { width: 96px; flex-shrink: 0; color: oklch(0.430 0.010 95); }
+    .fpct { width: 34px; flex-shrink: 0; text-align: right; color: oklch(0.545 0.008 95); }
+  </style>
+</helmet>
+
+<div class="win" style="width: 1100px; height: 740px; background: oklch(0.981 0.003 95); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 38px; flex-shrink: 0; background: oklch(0.945 0.004 95); border-bottom: 1px solid oklch(0.885 0.005 95); display: flex; align-items: center; padding: 0 14px; gap: 8px;">
+    <div style="display: flex; gap: 8px;">
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.72 0.16 25);"></div>
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.82 0.13 85);"></div>
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.78 0.14 145);"></div>
+    </div>
+    <div style="flex-grow: 1; text-align: center; font-size: 13px; font-weight: 600; color: oklch(0.400 0.010 95); margin-left: -60px;">Club Scraper</div>
+  </div>
+
+  <div style="height: 54px; flex-shrink: 0; border-bottom: 1px solid oklch(0.885 0.005 95); background: oklch(0.963 0.004 95); display: flex; align-items: center; padding: 0 16px; gap: 10px;">
+    <div style="height: 32px; padding: 0 18px; border-radius: 6px; background: oklch(0.545 0.132 258); color: oklch(0.99 0.005 258); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3l3-3M3 12v1.5A1.5 1.5 0 0 0 4.5 15h7a1.5 1.5 0 0 0 1.5-1.5V12" stroke="currentColor" stroke-width="1.4"/></svg>
+      Open results.csv
+    </div>
+    <div class="btn">Start a new run</div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 7px;">
+      <div style="width: 200px; height: 28px; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); border-radius: 5px; display: flex; align-items: center; gap: 7px; padding: 0 10px; color: oklch(0.660 0.008 95); font-size: 12px;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.6" stroke="oklch(0.660 0.008 95)" stroke-width="1.3"/><path d="M10.5 10.5L14 14" stroke="oklch(0.660 0.008 95)" stroke-width="1.3"/></svg>
+        Filter clubs
+      </div>
+    </div>
+  </div>
+
+  <!-- summary -->
+  <div style="flex-shrink: 0; padding: 14px 16px 12px; display: flex; align-items: center; gap: 26px;">
+    <div style="display: flex; align-items: baseline; gap: 9px;">
+      <span class="mono" style="font-size: 26px; font-weight: 600; letter-spacing: -0.01em;">1,247</span>
+      <span style="color: oklch(0.545 0.008 95);">clubs saved</span>
+    </div>
+    <div style="width: 1px; height: 30px; background: oklch(0.895 0.005 95);"></div>
+    <div style="font-size: 12px; color: oklch(0.545 0.008 95); line-height: 1.5;">
+      <div style="color: oklch(0.285 0.010 95);">Finished in 2h 51m</div>
+      <div>150 searches &middot; 3 terms &middot; 50 states</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 11px; border: 1px solid oklch(0.760 0.130 78 / 0.5); background: oklch(0.760 0.130 78 / 0.11); padding: 9px 13px; border-radius: 6px;">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink: 0;" aria-hidden="true"><path d="M8 1.8l6.4 11.4H1.6L8 1.8z" stroke="oklch(0.560 0.120 78)" stroke-width="1.3"/><path d="M8 6.4v3.1M8 11.2v.6" stroke="oklch(0.560 0.120 78)" stroke-width="1.4"/></svg>
+      <div style="font-size: 12px; line-height: 1.45;">
+        <div style="font-weight: 600;">3 states are only partly covered</div>
+        <div style="color: oklch(0.545 0.008 95);">Texas, California and Florida hit Google&rsquo;s 120-result limit</div>
+      </div>
+      <div class="btn" style="height: 25px; padding: 0 11px; font-size: 12px;">Search those by city</div>
+    </div>
+  </div>
+
+  <!-- body -->
+  <div style="flex-grow: 1; min-height: 0; display: flex; gap: 16px; padding: 0 16px 12px;">
+
+    <!-- table -->
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px;">
+      <div class="lbl">Clubs</div>
+      <div style="flex-grow: 1; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); overflow: hidden;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th class="th" style="width: 30px;"></th>
+              <th class="th">Club</th>
+              <th class="th" style="width: 128px;">Where</th>
+              <th class="th" style="width: 122px;">Phone</th>
+              <th class="th" style="width: 168px;">Email</th>
+              <th class="th" style="width: 74px;">Rating</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="td"></td>
+              <td class="td" style="font-weight: 500;">P1 Padel Las Vegas</td>
+              <td class="td" style="color: oklch(0.470 0.010 95);">Las Vegas, NV</td>
+              <td class="td mono" style="font-size: 12px;">702-575-1700</td>
+              <td class="td" style="font-size: 12px; color: oklch(0.470 0.010 95);">lasvegas@p1padel.com</td>
+              <td class="td mono" style="font-size: 12px;">4.9 &middot; 331</td>
+            </tr>
+            <tr style="background: oklch(0.972 0.003 95);">
+              <td class="td"></td>
+              <td class="td" style="font-weight: 500;">SLC Padel Club</td>
+              <td class="td" style="color: oklch(0.470 0.010 95);">Woods Cross, UT</td>
+              <td class="td mono" style="font-size: 12px;">321-429-7473</td>
+              <td class="td" style="font-size: 12px; color: oklch(0.470 0.010 95);">info@slcpadelclub.com</td>
+              <td class="td mono" style="font-size: 12px;">5.0 &middot; 181</td>
+            </tr>
+            <tr>
+              <td class="td"></td>
+              <td class="td" style="font-weight: 500;">Padel Den</td>
+              <td class="td" style="color: oklch(0.470 0.010 95);">Orem, UT</td>
+              <td class="td mono" style="font-size: 12px;">801-669-3164</td>
+              <td class="td" style="font-size: 12px; color: oklch(0.470 0.010 95);">info@padeldenusa.com</td>
+              <td class="td mono" style="font-size: 12px;">5.0 &middot; 65</td>
+            </tr>
+            <tr style="background: oklch(0.972 0.003 95);">
+              <td class="td"></td>
+              <td class="td" style="font-weight: 500;">Conquer Padel Lehi</td>
+              <td class="td" style="color: oklch(0.470 0.010 95);">Lehi, UT</td>
+              <td class="td mono" style="font-size: 12px;">385-574-0020</td>
+              <td class="td" style="font-size: 12px; color: oklch(0.470 0.010 95);">info@conquerpadel.com</td>
+              <td class="td mono" style="font-size: 12px;">5.0 &middot; 40</td>
+            </tr>
+            <tr>
+              <td class="td" style="text-align: center;">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.8l6.4 11.4H1.6L8 1.8z" stroke="oklch(0.640 0.120 78)" stroke-width="1.3"/><path d="M8 6.4v3.1M8 11.2v.6" stroke="oklch(0.640 0.120 78)" stroke-width="1.4"/></svg>
+              </td>
+              <td class="td" style="font-weight: 500;">All American Tennis Center
+                <span style="margin-left: 7px; font-size: 11px; font-weight: 500; color: oklch(0.560 0.120 78); background: oklch(0.760 0.130 78 / 0.16); padding: 1px 6px; border-radius: 3px;">may not be padel</span>
+              </td>
+              <td class="td" style="color: oklch(0.470 0.010 95);">Las Vegas, NV</td>
+              <td class="td mono" style="font-size: 12px;">702-596-3833</td>
+              <td class="td" style="font-size: 12px; color: oklch(0.660 0.008 95);">&mdash;</td>
+              <td class="td mono" style="font-size: 12px;">4.6 &middot; 9</td>
+            </tr>
+            <tr style="background: oklch(0.972 0.003 95);">
+              <td class="td"></td>
+              <td class="td" style="color: oklch(0.660 0.008 95); font-style: italic;">1,242 more&hellip;</td>
+              <td class="td"></td><td class="td"></td><td class="td"></td><td class="td"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size: 11px; color: oklch(0.545 0.008 95);">Google returns nearby sports venues where a term has no real match, so a few rows need your eye. Flagged ones are sorted to the bottom.</div>
+    </div>
+
+    <!-- health -->
+    <div style="width: 336px; flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;">
+      <div class="lbl">How complete the data is</div>
+      <div style="flex-grow: 1; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); padding: 12px 13px; display: flex; flex-direction: column; gap: 11px;">
+
+        <div style="display: flex; align-items: center; gap: 9px; padding: 8px 10px; background: oklch(0.640 0.115 152 / 0.11); border: 1px solid oklch(0.640 0.115 152 / 0.35); border-radius: 5px;">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex-shrink: 0;" aria-hidden="true"><circle cx="8" cy="8" r="6.3" stroke="oklch(0.500 0.100 152)" stroke-width="1.3"/><path d="M5.2 8.2l2 2 3.6-4.2" stroke="oklch(0.500 0.100 152)" stroke-width="1.5"/></svg>
+          <span style="font-size: 12px; line-height: 1.4;">Everything looks normal for this run.</span>
+        </div>
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; color: oklch(0.470 0.010 95); margin-bottom: 5px;">From Google Maps</div>
+          <div class="frow"><span class="fname">Name</span><span class="bar"><span class="fill" style="width: 100%;"></span></span><span class="fpct">100%</span></div>
+          <div class="frow"><span class="fname">Address</span><span class="bar"><span class="fill" style="width: 100%;"></span></span><span class="fpct">100%</span></div>
+          <div class="frow"><span class="fname">Phone</span><span class="bar"><span class="fill" style="width: 94%;"></span></span><span class="fpct">94%</span></div>
+          <div class="frow"><span class="fname">Rating</span><span class="bar"><span class="fill" style="width: 96%;"></span></span><span class="fpct">96%</span></div>
+          <div class="frow"><span class="fname">Website</span><span class="bar"><span class="fill" style="width: 79%;"></span></span><span class="fpct">79%</span></div>
+        </div>
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; color: oklch(0.470 0.010 95); margin-bottom: 5px;">From club websites</div>
+          <div class="frow"><span class="fname">Email</span><span class="bar"><span class="fill" style="width: 52%;"></span></span><span class="fpct">52%</span></div>
+          <div class="frow"><span class="fname">Instagram</span><span class="bar"><span class="fill" style="width: 61%;"></span></span><span class="fpct">61%</span></div>
+          <div class="frow"><span class="fname">Other phones</span><span class="bar"><span class="fill" style="width: 42%;"></span></span><span class="fpct">42%</span></div>
+          <div class="frow"><span class="fname">Facebook</span><span class="bar"><span class="fill" style="width: 39%;"></span></span><span class="fpct">39%</span></div>
+          <div class="frow"><span class="fname">Owner name</span><span class="bar"><span class="fill fill-lo" style="width: 24%;"></span></span><span class="fpct">24%</span></div>
+          <div class="frow"><span class="fname">Owner phone</span><span class="bar"><span class="fill fill-lo" style="width: 24%;"></span></span><span class="fpct">24%</span></div>
+          <div class="frow"><span class="fname">LinkedIn</span><span class="bar"><span class="fill fill-lo" style="width: 12%;"></span></span><span class="fpct">12%</span></div>
+        </div>
+
+        <div style="flex-grow: 1;"></div>
+        <div style="border-top: 1px solid oklch(0.925 0.005 95); padding-top: 9px; font-size: 11px; color: oklch(0.545 0.008 95); line-height: 1.5;">
+          Owner details only appear when a club publishes a name beside a phone number, so a quarter is normal. If a column that is usually full drops near zero, Google has changed its page layout and the app needs updating.
+        </div>
+        <div class="btn" style="height: 25px; padding: 0 11px; font-size: 12px; align-self: flex-start;">See all 25 columns</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height: 30px; flex-shrink: 0; border-top: 1px solid oklch(0.885 0.005 95); background: oklch(0.945 0.004 95); display: flex; align-items: center; padding: 0 14px; gap: 16px; font-size: 12px; color: oklch(0.545 0.008 95);">
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: oklch(0.285 0.010 95);">
+      <span style="width: 7px; height: 7px; border-radius: 50%; background: oklch(0.640 0.115 152);"></span>
+      Finished
+    </span>
+    <span class="mono">~/dev/gmap-scraper/data/results.csv</span>
+    <span style="flex-grow: 1;"></span>
+    <span>Saved 12 Sep, 14:38</span>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

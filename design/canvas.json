@@ -1,0 +1,76 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1100,
+      "h": 740,
+      "title": "1 \u00b7 Set up a run"
+    },
+    {
+      "file": "Running.dc.html",
+      "x": 1180,
+      "y": 0,
+      "w": 1100,
+      "h": 740,
+      "title": "2 \u00b7 While it runs"
+    },
+    {
+      "file": "Results.dc.html",
+      "x": 0,
+      "y": 900,
+      "w": 1100,
+      "h": 740,
+      "title": "3 \u00b7 When it finishes"
+    },
+    {
+      "file": "Blocked.dc.html",
+      "x": 1180,
+      "y": 900,
+      "w": 1100,
+      "h": 740,
+      "title": "4 \u00b7 When Google interrupts"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -190,
+      "w": 620,
+      "text": "Tkinter desktop app for the club scraper.\n\nThe governing idea: this is not a form, it is a job runner. A full run is 150 searches over 2-4 hours, so the app is designed to be glanced at across a room and left alone \u2014 not filled in and dismissed.\n\nEverything shown is real: the actual options, the real clubs we scraped, honest percentages."
+    },
+    {
+      "id": "coverage-note",
+      "x": 660,
+      "y": -190,
+      "w": 440,
+      "text": "The coverage grid is the centrepiece.\n\n150 searches is too many for a progress bar to mean anything. A 50-state grid shows at a glance which states are done, which are only partly covered, and which failed \u2014 the three states the resume cache actually tracks."
+    },
+    {
+      "id": "running-note",
+      "x": 1180,
+      "y": -190,
+      "w": 500,
+      "text": "You will stare at this screen for hours.\n\nSo it answers the three questions you actually have: what is it doing right now, how much is left, and can I close the lid. The last one gets its own line in the status bar, because the resume cache makes the answer yes."
+    },
+    {
+      "id": "health-note",
+      "x": 0,
+      "y": 720,
+      "w": 520,
+      "text": "The data-health panel is a rot detector, not decoration.\n\nWhen Google changes its page layout the scraper does not crash \u2014 it quietly returns blanks. A column that is normally full dropping to near zero is the only visible symptom, so it gets permanent space rather than living in a log."
+    },
+    {
+      "id": "blocked-note",
+      "x": 1180,
+      "y": 720,
+      "w": 500,
+      "text": "The interruption screen leads with reassurance.\n\nBeing blocked after 90 minutes feels like losing everything, so 'nothing has been lost' sits beside the warning, and the grid below shows exactly what survived. The three choices map to what people actually want: solve it now, wait, or stop here."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

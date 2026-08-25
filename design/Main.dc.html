@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; }
+    * { box-sizing: border-box; }
+    a { color: oklch(0.545 0.132 258); } a:hover { color: oklch(0.470 0.132 258); }
+    .win { font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+           font-size: 13px; color: oklch(0.285 0.010 95);
+           -webkit-font-smoothing: antialiased; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .cell { height: 46px; border: 1px solid oklch(0.885 0.005 95);
+            background: oklch(0.945 0.004 95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 4px; }
+    .cell b { font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+              color: oklch(0.545 0.008 95); }
+    .segs { display: flex; gap: 2px; }
+    .seg { width: 8px; height: 3px; background: oklch(0.885 0.005 95); }
+    .lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
+           text-transform: uppercase; color: oklch(0.615 0.008 95); }
+    .btn { height: 28px; padding: 0 14px; border-radius: 5px;
+           border: 1px solid oklch(0.845 0.005 95); background: oklch(0.995 0.002 95);
+           font-size: 13px; color: oklch(0.285 0.010 95); display: inline-flex;
+           align-items: center; gap: 7px; }
+    .chk { width: 14px; height: 14px; border-radius: 3px;
+           border: 1px solid oklch(0.775 0.006 95); background: oklch(0.995 0.002 95);
+           display: inline-flex; align-items: center; justify-content: center; }
+  </style>
+</helmet>
+
+<div class="win" style="width: 1100px; height: 740px; background: oklch(0.981 0.003 95); display: flex; flex-direction: column; overflow: hidden;">
+
+  <!-- title bar -->
+  <div style="height: 38px; flex-shrink: 0; background: oklch(0.945 0.004 95); border-bottom: 1px solid oklch(0.885 0.005 95); display: flex; align-items: center; padding: 0 14px; gap: 8px;">
+    <div style="display: flex; gap: 8px;">
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.72 0.16 25);"></div>
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.82 0.13 85);"></div>
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.78 0.14 145);"></div>
+    </div>
+    <div style="flex-grow: 1; text-align: center; font-size: 13px; font-weight: 600; color: oklch(0.400 0.010 95); margin-left: -60px;">Club Scraper</div>
+  </div>
+
+  <!-- toolbar -->
+  <div style="height: 54px; flex-shrink: 0; border-bottom: 1px solid oklch(0.885 0.005 95); background: oklch(0.963 0.004 95); display: flex; align-items: center; padding: 0 16px; gap: 10px;">
+    <div style="height: 32px; padding: 0 18px; border-radius: 6px; background: oklch(0.545 0.132 258); color: oklch(0.99 0.005 258); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 2l7 4-7 4V2z" fill="currentColor"/></svg>
+      Start scrape
+    </div>
+    <div class="btn">Open output folder</div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="lbl">Saving to</span>
+      <div class="mono" style="height: 28px; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); border-radius: 5px; display: flex; align-items: center; gap: 8px; padding: 0 11px; font-size: 12px; color: oklch(0.470 0.010 95);">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="oklch(0.545 0.008 95)" stroke-width="1.2"/><path d="M5 8h6M5 11h6" stroke="oklch(0.545 0.008 95)" stroke-width="1.2"/></svg>
+        data/results.csv
+      </div>
+      <div class="btn">Change&hellip;</div>
+    </div>
+  </div>
+
+  <!-- config row -->
+  <div style="flex-shrink: 0; display: flex; gap: 16px; padding: 16px 16px 14px;">
+
+    <!-- search terms -->
+    <div style="width: 330px; display: flex; flex-direction: column; gap: 7px;">
+      <div class="lbl">Search terms</div>
+      <div style="border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); height: 118px; display: flex; flex-direction: column;">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: oklch(0.545 0.132 258 / 0.09);">
+          <span style="flex-grow: 1;">padel club</span>
+          <span class="mono" style="font-size: 11px; color: oklch(0.545 0.008 95);">50 states</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px;">
+          <span style="flex-grow: 1;">padel court</span>
+          <span class="mono" style="font-size: 11px; color: oklch(0.545 0.008 95);">50 states</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px;">
+          <span style="flex-grow: 1;">padel tennis</span>
+          <span class="mono" style="font-size: 11px; color: oklch(0.545 0.008 95);">50 states</span>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <div style="border-top: 1px solid oklch(0.910 0.005 95); display: flex; gap: 6px; padding: 6px 8px;">
+          <div class="btn" style="height: 24px; padding: 0 10px; font-size: 12px;">Add term</div>
+          <div class="btn" style="height: 24px; padding: 0 10px; font-size: 12px; color: oklch(0.545 0.008 95);">Remove</div>
+        </div>
+      </div>
+      <div style="font-size: 11px; color: oklch(0.545 0.008 95); line-height: 1.45;">Each term is searched once per selected state.</div>
+    </div>
+
+    <!-- options -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 7px;">
+      <div class="lbl">Options</div>
+      <div style="border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); height: 118px; padding: 12px 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 22px; align-content: start;">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <div class="chk" style="background: oklch(0.545 0.132 258); border-color: oklch(0.545 0.132 258);">
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 5.2l2 2 4-4.4" stroke="oklch(0.99 0.005 258)" stroke-width="1.7"/></svg>
+          </div>
+          <span>Look up contact details on club websites</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <div class="chk"></div>
+          <span>Show the browser while it works</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <div class="chk"></div>
+          <span>Re-scrape states already finished</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <div class="chk"></div>
+          <span>Stop after
+            <span class="mono" style="display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 21px; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.981 0.003 95); font-size: 12px; margin: 0 3px;">3</span>
+            per state</span>
+        </div>
+        <div style="grid-column: span 2; border-top: 1px solid oklch(0.925 0.005 95); padding-top: 10px; display: flex; align-items: center; gap: 9px; color: oklch(0.545 0.008 95); font-size: 12px;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="oklch(0.545 0.008 95)" stroke-width="1.2"/><path d="M8 5v3.6l2.2 1.3" stroke="oklch(0.545 0.008 95)" stroke-width="1.2"/></svg>
+          Paced to about 3 seconds per club, so a full run takes hours. You can close this window and pick it up later.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- coverage -->
+  <div style="flex-grow: 1; padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 0;">
+    <div style="display: flex; align-items: baseline; gap: 12px;">
+      <div class="lbl">Coverage</div>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; align-items: center; gap: 14px; font-size: 11px; color: oklch(0.545 0.008 95);">
+        <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 9px; height: 9px; background: oklch(0.640 0.115 152);"></span>finished</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 9px; height: 9px; background: oklch(0.760 0.130 78);"></span>partly done</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 9px; height: 9px; background: oklch(0.585 0.155 27);"></span>failed</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 9px; height: 9px; background: oklch(0.885 0.005 95);"></span>not started</span>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px;">
+      <div class="cell"><b>AL</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>AK</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>AZ</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>AR</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>CA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>CO</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>CT</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>DE</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>FL</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>GA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>HI</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>ID</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>IL</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>IN</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>IA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>KS</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>KY</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>LA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>ME</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>MD</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>MA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>MI</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>MN</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>MS</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>MO</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>MT</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NE</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NV</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NH</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NJ</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NM</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NY</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NC</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>ND</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>OH</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>OK</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>OR</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>PA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>RI</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>SC</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>SD</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>TN</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>TX</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>UT</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>VT</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>VA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WV</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WI</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WY</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+    </div>
+    <div style="display: flex; gap: 8px; padding-top: 2px;">
+      <div class="btn" style="height: 24px; padding: 0 10px; font-size: 12px;">Select all</div>
+      <div class="btn" style="height: 24px; padding: 0 10px; font-size: 12px;">Select none</div>
+      <div class="btn" style="height: 24px; padding: 0 10px; font-size: 12px;">Only unfinished</div>
+    </div>
+  </div>
+
+  <!-- status bar -->
+  <div style="height: 30px; flex-shrink: 0; border-top: 1px solid oklch(0.885 0.005 95); background: oklch(0.945 0.004 95); display: flex; align-items: center; padding: 0 14px; gap: 16px; font-size: 12px; color: oklch(0.545 0.008 95);">
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: oklch(0.285 0.010 95);">
+      <span style="width: 7px; height: 7px; border-radius: 50%; background: oklch(0.760 0.130 78);"></span>
+      Ready
+    </span>
+    <span>150 searches queued</span>
+    <span>0 clubs saved</span>
+    <span style="flex-grow: 1;"></span>
+    <span>Roughly 2h 40m</span>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

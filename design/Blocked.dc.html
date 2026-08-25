@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; }
+    * { box-sizing: border-box; }
+    a { color: oklch(0.545 0.132 258); } a:hover { color: oklch(0.470 0.132 258); }
+    .win { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 13px;
+           color: oklch(0.285 0.010 95); -webkit-font-smoothing: antialiased; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+           color: oklch(0.615 0.008 95); }
+    .btn { height: 28px; padding: 0 14px; border-radius: 5px; border: 1px solid oklch(0.845 0.005 95);
+           background: oklch(0.995 0.002 95); font-size: 13px; color: oklch(0.285 0.010 95);
+           display: inline-flex; align-items: center; gap: 7px; }
+    .cell { height: 40px; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.945 0.004 95);
+            display: flex; align-items: center; justify-content: center; }
+    .cell b { font-size: 11.5px; font-weight: 600; color: oklch(0.615 0.008 95); }
+    .c-d { background: oklch(0.640 0.115 152 / 0.14); border-color: oklch(0.640 0.115 152 / 0.4); }
+    .c-d b { color: oklch(0.430 0.095 152); }
+    .c-p { background: oklch(0.760 0.130 78 / 0.18); border-color: oklch(0.760 0.130 78 / 0.5); }
+    .c-p b { color: oklch(0.480 0.100 78); }
+    .c-f { background: oklch(0.585 0.155 27 / 0.13); border-color: oklch(0.585 0.155 27 / 0.42); }
+    .c-f b { color: oklch(0.500 0.145 27); }
+  </style>
+</helmet>
+
+<div class="win" style="width: 1100px; height: 740px; background: oklch(0.981 0.003 95); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 38px; flex-shrink: 0; background: oklch(0.945 0.004 95); border-bottom: 1px solid oklch(0.885 0.005 95); display: flex; align-items: center; padding: 0 14px; gap: 8px;">
+    <div style="display: flex; gap: 8px;">
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.72 0.16 25);"></div>
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.82 0.13 85);"></div>
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.78 0.14 145);"></div>
+    </div>
+    <div style="flex-grow: 1; text-align: center; font-size: 13px; font-weight: 600; color: oklch(0.400 0.010 95); margin-left: -60px;">Club Scraper</div>
+  </div>
+
+  <div style="height: 54px; flex-shrink: 0; border-bottom: 1px solid oklch(0.885 0.005 95); background: oklch(0.963 0.004 95); display: flex; align-items: center; padding: 0 16px; gap: 10px;">
+    <div style="height: 32px; padding: 0 18px; border-radius: 6px; background: oklch(0.545 0.132 258); color: oklch(0.99 0.005 258); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 2l7 4-7 4V2z" fill="currentColor"/></svg>
+      Carry on from here
+    </div>
+    <div class="btn">Open a browser window</div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 9px; font-size: 12px; color: oklch(0.545 0.008 95);">
+      <span class="mono" style="font-size: 13px; color: oklch(0.285 0.010 95); font-weight: 600;">1,204</span> clubs saved so far
+    </div>
+  </div>
+
+  <!-- the interruption -->
+  <div style="flex-shrink: 0; padding: 18px 16px 14px;">
+    <div style="border: 1px solid oklch(0.760 0.130 78 / 0.55); background: oklch(0.760 0.130 78 / 0.09); border-radius: 7px; padding: 17px 19px; display: flex; gap: 16px;">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0; margin-top: 1px;" aria-hidden="true">
+        <path d="M12 3l9.5 17H2.5L12 3z" stroke="oklch(0.560 0.120 78)" stroke-width="1.5"/>
+        <path d="M12 9.5v5M12 17.2v.9" stroke="oklch(0.560 0.120 78)" stroke-width="1.7"/>
+      </svg>
+      <div style="flex-grow: 1;">
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Google has stopped answering</div>
+        <div style="font-size: 13px; line-height: 1.6; color: oklch(0.410 0.010 95); max-width: 720px;">
+          Three searches failed one after another, which usually means Google wants someone to prove they are not a robot. The run paused itself rather than keep hammering the site.
+        </div>
+        <div style="display: flex; gap: 9px; margin-top: 14px;">
+          <div style="height: 30px; padding: 0 15px; border-radius: 5px; background: oklch(0.285 0.010 95); color: oklch(0.985 0.003 95); font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2 6h12" stroke="currentColor" stroke-width="1.3"/></svg>
+            Open the browser so I can solve it
+          </div>
+          <div class="btn" style="height: 30px;">Wait 20 minutes, then carry on</div>
+          <div class="btn" style="height: 30px;">Finish here and save what I have</div>
+        </div>
+      </div>
+      <div style="width: 232px; flex-shrink: 0; border-left: 1px solid oklch(0.760 0.130 78 / 0.35); padding-left: 17px; font-size: 12px; line-height: 1.6; color: oklch(0.470 0.010 95);">
+        <div style="display: flex; align-items: center; gap: 7px; font-weight: 600; color: oklch(0.430 0.095 152); margin-bottom: 5px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.3"/><path d="M5.2 8.2l2 2 3.6-4.2" stroke="currentColor" stroke-width="1.5"/></svg>
+          Nothing has been lost
+        </div>
+        Every club found so far is already written to disk. Whatever you choose, the run picks up from Nevada rather than starting over.
+      </div>
+    </div>
+  </div>
+
+  <!-- what's done -->
+  <div style="flex-grow: 1; min-height: 0; padding: 0 16px 12px; display: flex; flex-direction: column; gap: 9px;">
+    <div style="display: flex; align-items: baseline; gap: 12px;">
+      <div class="lbl">Where it got to</div>
+      <div style="flex-grow: 1;"></div>
+      <div style="font-size: 12px; color: oklch(0.545 0.008 95);">27 states finished &middot; 1 partly done &middot; 1 failed &middot; 21 still to go</div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px;">
+      <div class="cell c-d"><b>AL</b></div><div class="cell c-d"><b>AK</b></div><div class="cell c-d"><b>AZ</b></div><div class="cell c-d"><b>AR</b></div><div class="cell c-p"><b>CA</b></div>
+      <div class="cell c-d"><b>CO</b></div><div class="cell c-d"><b>CT</b></div><div class="cell c-d"><b>DE</b></div><div class="cell c-d"><b>FL</b></div><div class="cell c-d"><b>GA</b></div>
+      <div class="cell c-d"><b>HI</b></div><div class="cell c-f"><b>ID</b></div><div class="cell c-d"><b>IL</b></div><div class="cell c-d"><b>IN</b></div><div class="cell c-d"><b>IA</b></div>
+      <div class="cell c-d"><b>KS</b></div><div class="cell c-d"><b>KY</b></div><div class="cell c-d"><b>LA</b></div><div class="cell c-d"><b>ME</b></div><div class="cell c-d"><b>MD</b></div>
+      <div class="cell c-d"><b>MA</b></div><div class="cell c-d"><b>MI</b></div><div class="cell c-d"><b>MN</b></div><div class="cell c-d"><b>MS</b></div><div class="cell c-d"><b>MO</b></div>
+      <div class="cell c-d"><b>MT</b></div><div class="cell c-d"><b>NE</b></div><div class="cell"><b>NV</b></div><div class="cell"><b>NH</b></div><div class="cell"><b>NJ</b></div>
+      <div class="cell"><b>NM</b></div><div class="cell"><b>NY</b></div><div class="cell"><b>NC</b></div><div class="cell"><b>ND</b></div><div class="cell"><b>OH</b></div>
+      <div class="cell"><b>OK</b></div><div class="cell"><b>OR</b></div><div class="cell"><b>PA</b></div><div class="cell"><b>RI</b></div><div class="cell"><b>SC</b></div>
+      <div class="cell"><b>SD</b></div><div class="cell"><b>TN</b></div><div class="cell"><b>TX</b></div><div class="cell"><b>UT</b></div><div class="cell"><b>VT</b></div>
+      <div class="cell"><b>VA</b></div><div class="cell"><b>WA</b></div><div class="cell"><b>WV</b></div><div class="cell"><b>WI</b></div><div class="cell"><b>WY</b></div>
+    </div>
+
+    <div style="display: flex; gap: 16px; margin-top: 4px;">
+      <div style="flex-grow: 1; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); padding: 10px 13px; font-size: 12px; line-height: 1.55; color: oklch(0.470 0.010 95);">
+        <span style="color: oklch(0.500 0.145 27); font-weight: 600;">Idaho failed</span> &mdash; it will be tried again on the next run, so nothing is permanently skipped.
+      </div>
+      <div style="flex-grow: 1; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); padding: 10px 13px; font-size: 12px; line-height: 1.55; color: oklch(0.470 0.010 95);">
+        <span style="color: oklch(0.480 0.100 78); font-weight: 600;">California is partly done</span> &mdash; it hit Google&rsquo;s 120-result limit, so searching by city would find more.
+      </div>
+    </div>
+  </div>
+
+  <div style="height: 30px; flex-shrink: 0; border-top: 1px solid oklch(0.885 0.005 95); background: oklch(0.945 0.004 95); display: flex; align-items: center; padding: 0 14px; gap: 16px; font-size: 12px; color: oklch(0.545 0.008 95);">
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: oklch(0.285 0.010 95);">
+      <span style="width: 7px; height: 7px; border-radius: 50%; background: oklch(0.760 0.130 78);"></span>
+      Paused
+    </span>
+    <span>Stopped at Nevada, 1h 12m in</span>
+    <span style="flex-grow: 1;"></span>
+    <span>Waiting for you</span>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

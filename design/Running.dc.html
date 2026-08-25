@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; }
+    * { box-sizing: border-box; }
+    a { color: oklch(0.545 0.132 258); } a:hover { color: oklch(0.470 0.132 258); }
+    .win { font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+           font-size: 13px; color: oklch(0.285 0.010 95); -webkit-font-smoothing: antialiased; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .cell { height: 44px; border: 1px solid oklch(0.885 0.005 95);
+            background: oklch(0.945 0.004 95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 4px; }
+    .cell b { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: oklch(0.545 0.008 95); }
+    .segs { display: flex; gap: 2px; }
+    .seg { width: 8px; height: 3px; background: oklch(0.885 0.005 95); }
+    .d { background: oklch(0.640 0.115 152); }
+    .p { background: oklch(0.760 0.130 78); }
+    .f { background: oklch(0.585 0.155 27); }
+    .c-d { background: oklch(0.640 0.115 152 / 0.14); border-color: oklch(0.640 0.115 152 / 0.4); }
+    .c-d b { color: oklch(0.430 0.095 152); }
+    .c-p { background: oklch(0.760 0.130 78 / 0.18); border-color: oklch(0.760 0.130 78 / 0.5); }
+    .c-p b { color: oklch(0.480 0.100 78); }
+    .c-f { background: oklch(0.585 0.155 27 / 0.13); border-color: oklch(0.585 0.155 27 / 0.42); }
+    .c-f b { color: oklch(0.500 0.145 27); }
+    .c-c { background: oklch(0.545 0.132 258 / 0.16); border-color: oklch(0.545 0.132 258); border-width: 2px; }
+    .c-c b { color: oklch(0.440 0.132 258); }
+    .lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+           color: oklch(0.615 0.008 95); }
+    .btn { height: 28px; padding: 0 14px; border-radius: 5px; border: 1px solid oklch(0.845 0.005 95);
+           background: oklch(0.995 0.002 95); font-size: 13px; color: oklch(0.285 0.010 95);
+           display: inline-flex; align-items: center; gap: 7px; }
+    .logline { display: flex; gap: 10px; padding: 1px 0; }
+    .logtime { color: oklch(0.660 0.008 95); flex-shrink: 0; }
+  </style>
+</helmet>
+
+<div class="win" style="width: 1100px; height: 740px; background: oklch(0.981 0.003 95); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 38px; flex-shrink: 0; background: oklch(0.945 0.004 95); border-bottom: 1px solid oklch(0.885 0.005 95); display: flex; align-items: center; padding: 0 14px; gap: 8px;">
+    <div style="display: flex; gap: 8px;">
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.72 0.16 25);"></div>
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.82 0.13 85);"></div>
+      <div style="width: 12px; height: 12px; border-radius: 50%; background: oklch(0.78 0.14 145);"></div>
+    </div>
+    <div style="flex-grow: 1; text-align: center; font-size: 13px; font-weight: 600; color: oklch(0.400 0.010 95); margin-left: -60px;">Club Scraper</div>
+  </div>
+
+  <div style="height: 54px; flex-shrink: 0; border-bottom: 1px solid oklch(0.885 0.005 95); background: oklch(0.963 0.004 95); display: flex; align-items: center; padding: 0 16px; gap: 10px;">
+    <div style="height: 32px; padding: 0 18px; border-radius: 6px; border: 1px solid oklch(0.585 0.155 27 / 0.55); background: oklch(0.585 0.155 27 / 0.09); color: oklch(0.470 0.145 27); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+      <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" fill="currentColor"/></svg>
+      Stop
+    </div>
+    <div class="btn">Show browser</div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 9px; font-size: 12px; color: oklch(0.545 0.008 95);">
+      <span class="mono" style="font-size: 13px; color: oklch(0.285 0.010 95); font-weight: 600;">1,204</span> clubs saved
+      <span style="width: 1px; height: 16px; background: oklch(0.885 0.005 95);"></span>
+      <span>Saving to</span>
+      <span style="color: oklch(0.285 0.010 95);">results.csv</span>
+    </div>
+  </div>
+
+  <!-- now running -->
+  <div style="flex-shrink: 0; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 9px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="width: 8px; height: 8px; border-radius: 50%; background: oklch(0.545 0.132 258);"></span>
+      <span style="font-size: 15px; font-weight: 600;">Searching &ldquo;padel club&rdquo; in Nevada</span>
+      <span style="padding: 2px 8px; border-radius: 4px; background: oklch(0.545 0.132 258 / 0.12); color: oklch(0.440 0.132 258); font-size: 11px; font-weight: 600;">Step 1 of 3 &middot; collecting listings</span>
+      <span style="flex-grow: 1;"></span>
+      <span class="mono" style="font-size: 12px; color: oklch(0.545 0.008 95);">club 34 of 41</span>
+    </div>
+    <div style="height: 8px; background: oklch(0.910 0.005 95); border-radius: 4px; overflow: hidden;">
+      <div style="width: 55%; height: 100%; background: oklch(0.545 0.132 258); border-radius: 4px;"></div>
+    </div>
+    <div style="display: flex; gap: 26px; font-size: 12px; color: oklch(0.545 0.008 95);">
+      <span><span class="mono" style="color: oklch(0.285 0.010 95); font-weight: 600;">28</span> of 150 searches done</span>
+      <span><span class="mono" style="color: oklch(0.285 0.010 95); font-weight: 600;">1h 12m</span> elapsed</span>
+      <span><span class="mono" style="color: oklch(0.285 0.010 95); font-weight: 600;">2h 05m</span> left, roughly</span>
+      <span style="flex-grow: 1;"></span>
+      <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.5v11M3.5 7L8 2.5 12.5 7" stroke="oklch(0.640 0.115 152)" stroke-width="1.3"/></svg>
+        Progress is saved as it goes
+      </span>
+    </div>
+  </div>
+
+  <!-- coverage -->
+  <div style="flex-shrink: 0; padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; align-items: baseline; gap: 12px;">
+      <div class="lbl">Coverage &mdash; &ldquo;padel club&rdquo;</div>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; align-items: center; gap: 14px; font-size: 11px; color: oklch(0.545 0.008 95);">
+        <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 9px; height: 9px; background: oklch(0.640 0.115 152);"></span>finished</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 9px; height: 9px; background: oklch(0.760 0.130 78);"></span>partly done</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 9px; height: 9px; background: oklch(0.585 0.155 27);"></span>failed</span>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px;">
+      <div class="cell c-d"><b>AL</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>AK</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>AZ</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>AR</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-p"><b>CA</b><div class="segs"><span class="seg p"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>CO</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>CT</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>DE</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>FL</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>GA</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>HI</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-f"><b>ID</b><div class="segs"><span class="seg f"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>IL</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>IN</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>IA</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>KS</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>KY</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>LA</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>ME</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>MD</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>MA</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>MI</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>MN</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>MS</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>MO</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>MT</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>NE</b><div class="segs"><span class="seg d"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-c"><b>NV</b><div class="segs"><span class="seg" style="background: oklch(0.545 0.132 258);"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NH</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NJ</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NM</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NY</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NC</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>ND</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>OH</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>OK</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>OR</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>PA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>RI</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>SC</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>SD</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>TN</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>TX</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>UT</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>VT</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>VA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WV</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WI</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WY</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+    </div>
+  </div>
+
+  <!-- activity log -->
+  <div style="flex-grow: 1; min-height: 0; padding: 0 16px 12px; display: flex; flex-direction: column; gap: 7px;">
+    <div style="display: flex; align-items: baseline; gap: 12px;">
+      <div class="lbl">Activity</div>
+      <div style="flex-grow: 1;"></div>
+      <div class="btn" style="height: 22px; padding: 0 9px; font-size: 11px;">Save log</div>
+    </div>
+    <div class="mono" style="flex-grow: 1; border: 1px solid oklch(0.885 0.005 95); background: oklch(0.995 0.002 95); padding: 9px 11px; font-size: 11.5px; line-height: 1.65; color: oklch(0.400 0.010 95); overflow: hidden;">
+      <div class="logline"><span class="logtime">11:47:02</span><span>Finished Nebraska &mdash; 6 clubs</span></div>
+      <div class="logline"><span class="logtime">11:47:09</span><span>Searching &ldquo;padel club&rdquo; in Nevada</span></div>
+      <div class="logline"><span class="logtime">11:47:21</span><span>Found 41 listings</span></div>
+      <div class="logline"><span class="logtime">11:49:04</span><span style="color: oklch(0.500 0.145 27);">Skipped one listing &mdash; the page never loaded</span></div>
+      <div class="logline"><span class="logtime">11:51:38</span><span>Saved &ldquo;P1 Padel Las Vegas&rdquo; &middot; Las Vegas, NV</span></div>
+    </div>
+  </div>
+
+  <div style="height: 30px; flex-shrink: 0; border-top: 1px solid oklch(0.885 0.005 95); background: oklch(0.945 0.004 95); display: flex; align-items: center; padding: 0 14px; gap: 16px; font-size: 12px; color: oklch(0.545 0.008 95);">
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: oklch(0.285 0.010 95);">
+      <span style="width: 7px; height: 7px; border-radius: 50%; background: oklch(0.545 0.132 258);"></span>
+      Running
+    </span>
+    <span>Idaho failed &mdash; will retry</span>
+    <span>California hit the 120-result limit</span>
+    <span style="flex-grow: 1;"></span>
+    <span>Safe to close &mdash; picks up where it left off</span>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
