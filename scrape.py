@@ -644,6 +644,14 @@ def build_record(raw: dict, term: str, place: "geo.Place", now: str) -> dict:
     buckets every falsy key together, so an empty one would silently collapse
     unrelated clubs into a single row. The invariant is enforced here, at the
     only place records are created, rather than guarded again downstream.
+
+    The `state` column's shape depends on what the query supplied: a region
+    name (e.g. "Texas") on a region- or city-targeted run, but a bare
+    address-derived two-letter code on a whole-country US run, where the
+    address is the only source of a state at all. That fallback is
+    deliberate -- dropping it would lose real data for a purity a whole-
+    country run cannot afford -- so a consumer of this column must accept
+    either shape.
     """
     url = raw.get("url", "")
     address = clean_address_label(raw.get("address_label", ""))
