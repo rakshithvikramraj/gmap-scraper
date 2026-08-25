@@ -834,9 +834,7 @@ def scrape_query(
     or the listings it never reached are lost for good.
     """
     location = place.query_text()
-    # Coverage identity for `runstate`: a whole-country run has no region, so
-    # the country stands in rather than leaving the coverage cell blank.
-    place_state = place.region or place.country
+    place_state = place.coverage_key()
     page.goto(build_search_url(term, place), wait_until="domcontentloaded", timeout=60000)
     accept_consent(page)
     if is_blocked(page):
@@ -915,9 +913,7 @@ def run_stage1(terms, places, limit=None, headless=True, force=False) -> None:
                     browser.close()
                     return
                 location = place.query_text()
-                # Coverage identity for `runstate`: a whole-country run has no
-                # region, so the country stands in for a blank coverage cell.
-                place_state = place.region or place.country
+                place_state = place.coverage_key()
                 if not force and pair_key(term, place) in done:
                     print(f"skip (cached): {term} / {location}")
                     emit("query_skipped", term=term, state=place_state,

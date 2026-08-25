@@ -38,11 +38,11 @@ def initial_state(done_pairs, terms, places) -> RunState:
 
     `places` holds whatever the caller compares `done_pairs` entries against -
     in practice `geo.Place` values. This module stays free of any geography
-    import: it only calls `.label()` (the coverage cell's key, matching the
-    plain name `run_stage1` puts in its `state=` events) and `.key()` (the
-    country/region/city triple that, prefixed with the term, is a
-    `done_pairs` entry) on each one, so it never has to know what a country
-    or a region is.
+    import: it only calls `.coverage_key()` (the coverage cell's key,
+    matching the `state=` value every coverage event in `scrape.py` emits)
+    and `.key()` (the country/region/city triple that, prefixed with the
+    term, is a `done_pairs` entry) on each one, so it never has to know what
+    a country or a region is.
 
     `queries_done` deliberately starts at 0 and is owned entirely by the event
     stream: run_stage1 emits query_skipped for every cached pair, so seeding it
@@ -52,7 +52,7 @@ def initial_state(done_pairs, terms, places) -> RunState:
     coverage = {}
     for place in places:
         cached = sum(1 for term in terms if (term, *place.key()) in done_pairs)
-        coverage[place.label()] = "done" if cached == len(terms) and terms else "pending"
+        coverage[place.coverage_key()] = "done" if cached == len(terms) and terms else "pending"
     return RunState(
         coverage=coverage,
         queries_total=len(terms) * len(places),

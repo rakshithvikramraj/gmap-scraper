@@ -1,3 +1,5 @@
+import pytest
+
 import geo
 
 
@@ -39,6 +41,41 @@ def test_label_of_a_whole_country_names_the_country():
 def test_place_is_hashable():
     # Places land in sets when the runner deduplicates work.
     assert len({geo.Place(country="India"), geo.Place(country="India")}) == 1
+
+
+def test_a_region_without_a_country_cannot_be_constructed():
+    # --region "Texas" with no comma partitions to country="" -- this is
+    # what makes that state unreachable rather than merely unreached.
+    with pytest.raises(ValueError):
+        geo.Place(region="Texas")
+
+
+def test_a_city_without_a_country_cannot_be_constructed():
+    with pytest.raises(ValueError):
+        geo.Place(city="Austin")
+
+
+def test_a_city_without_a_country_cannot_be_constructed_even_with_a_region():
+    with pytest.raises(ValueError):
+        geo.Place(region="Texas", city="Austin")
+
+
+def test_coverage_key_of_a_region_level_place_is_the_region():
+    place = geo.Place(country="United States", region="Texas")
+    assert place.coverage_key() == "Texas"
+
+
+def test_coverage_key_of_a_city_level_place_is_still_the_region():
+    # The bug this guards: label() gives "Austin, Texas" for the same place,
+    # and that is a different string -- a coverage cell keyed by one and
+    # painted by the other never leaves "pending".
+    place = geo.Place(country="United States", region="Texas", city="Austin")
+    assert place.coverage_key() == "Texas"
+    assert place.coverage_key() != place.label()
+
+
+def test_coverage_key_of_a_whole_country_place_is_the_country():
+    assert geo.Place(country="India").coverage_key() == "India"
 
 
 # --- accessors ------------------------------------------------------------

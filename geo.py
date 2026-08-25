@@ -25,6 +25,14 @@ class Place:
     region: str = ""
     city: str = ""
 
+    def __post_init__(self) -> None:
+        if not self.country and (self.region or self.city):
+            raise ValueError(
+                "a region or city requires a country: "
+                f"Place(country={self.country!r}, region={self.region!r}, "
+                f"city={self.city!r})"
+            )
+
     def parts(self) -> tuple[str, ...]:
         """The non-empty parts, broadest first."""
         return tuple(p for p in (self.country, self.region, self.city) if p)
@@ -45,6 +53,18 @@ class Place:
         """Short human form for a log line or a status header."""
         if self.city:
             return f"{self.city}, {self.region}" if self.region else self.city
+        return self.region or self.country
+
+    def coverage_key(self) -> str:
+        """Identity of this place's coverage-grid cell.
+
+        The spec wants coverage cells to be regions, not cities: a city-level
+        run still paints progress onto its region's cell rather than adding
+        one cell per city. This is the single definition of that identity --
+        `runstate.initial_state` and every coverage event `scrape.py` emits
+        must key off this, not re-derive it, or a city-level place seeds one
+        cell and reports progress against a different one.
+        """
         return self.region or self.country
 
 

@@ -44,6 +44,29 @@ def test_a_cached_state_paints_done_not_pending(tmp_path):
     assert s.coverage == {"Texas": "done"}
 
 
+def test_a_city_level_place_seeds_the_same_key_its_events_use():
+    """Regression for the bug 7510a77 fixed reappearing at the city level.
+
+    initial_state used to key coverage by place.label() ("Austin, Texas")
+    while every event scrape.py emits keys it by place.coverage_key()
+    ("Texas"). For a region-only place the two happened to be equal, which
+    is why this went unnoticed until a city was added to the place: the
+    seeded cell and the event cell disagreed, so the seeded cell never left
+    "pending" and a second cell appeared beside it.
+    """
+    place = geo.Place(country="United States", region="Texas", city="Austin")
+    s = runstate.initial_state(set(), ["gym"], [place])
+    assert set(s.coverage) == {place.coverage_key()}
+
+    s = runstate.fold(s, "query_start", {"term": "gym", "state": place.coverage_key()})
+    s = runstate.fold(s, "query_done", {"term": "gym", "state": place.coverage_key(),
+                                        "scraped": 3, "failed": 0, "complete": True})
+    assert set(s.coverage) == {place.coverage_key()}, (
+        "the event must land on the same cell initial_state seeded, not a second one"
+    )
+    assert s.coverage[place.coverage_key()] == "done"
+
+
 def test_fold_does_not_mutate_its_argument():
     s = runstate.initial_state(set(), TERMS, PLACES)
     runstate.fold(s, "listing_saved", {"name": "X", "city": "Y", "state": "UT"})
