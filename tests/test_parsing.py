@@ -156,3 +156,13 @@ def test_find_owner_contact_handles_title_directly_before_name():
 def test_find_owner_contact_handles_title_before_name_in_prose():
     text = "Founder Dave Kim can be reached at (512) 555-0100"
     assert scrape.find_owner_contact(text) == ("Dave Kim", "+15125550100")
+
+
+def test_find_owner_contact_keeps_a_three_token_name_whole():
+    text = "Mary Jane Watson, Owner - (512) 555-0100"
+    assert scrape.find_owner_contact(text) == ("Mary Jane Watson", "+15125550100")
+
+
+def test_find_owner_contact_rejects_an_over_long_capitalised_run():
+    text = "Owner Riverside Grand Athletic Pavilion Trust (512) 555-0100"
+    assert scrape.find_owner_contact(text) == ("", "+15125550100")

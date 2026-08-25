@@ -147,6 +147,7 @@ NAME_STOPWORDS = {
     "book", "now", "court", "courts", "sports", "center", "centre", "academy",
 }
 OWNER_WINDOW = 120
+MAX_NAME_TOKENS = 3
 
 
 def normalize_phone(raw: str) -> str:
@@ -177,6 +178,10 @@ def _names_in(fragment: str) -> list[str]:
     rejects that pair, and the scan resumes past "Maria" -- so the real name is
     never seen. Filtering tokens first and pairing adjacent survivors handles a
     title word sitting directly against the name.
+
+    The whitespace-only gap check stops two survivors pairing across a
+    filtered word: "John Smith, Owner Bob Jones" yields ["John Smith", "Bob Jones"],
+    never "Smith Bob".
     """
     tokens = [
         (match.group(0), match.start(), match.end())
@@ -184,9 +189,18 @@ def _names_in(fragment: str) -> list[str]:
         if match.group(0).lower() not in NAME_STOPWORDS
     ]
     names = []
-    for (first, _, first_end), (last, last_start, _) in zip(tokens, tokens[1:]):
-        if not fragment[first_end:last_start].strip():
-            names.append(f"{first} {last}")
+    run: list[str] = []
+    previous_end = None
+    for word, start, end in tokens:
+        if previous_end is not None and not fragment[previous_end:start].strip():
+            run.append(word)
+        else:
+            if 2 <= len(run) <= MAX_NAME_TOKENS:
+                names.append(" ".join(run))
+            run = [word]
+        previous_end = end
+    if 2 <= len(run) <= MAX_NAME_TOKENS:
+        names.append(" ".join(run))
     return names
 
 
