@@ -3,7 +3,9 @@
 Run `python scrape.py --help` for usage.
 """
 
+import re
 from pathlib import Path
+from urllib.parse import quote_plus
 
 # ---------------------------------------------------------------------------
 # CONFIG - the only block you normally need to edit
@@ -47,3 +49,44 @@ COLUMNS = [
 DATA_DIR = Path("data")
 CACHE_PATH = DATA_DIR / "cache.jsonl"
 CSV_PATH = DATA_DIR / "results.csv"
+
+# ---------------------------------------------------------------------------
+# Parsing functions
+# ---------------------------------------------------------------------------
+
+MAPS_SEARCH_URL = "https://www.google.com/maps/search/{query}?hl=en&gl=us"
+
+PLACE_KEY_RE = re.compile(r"!1s(0x[0-9a-f]+:0x[0-9a-f]+)", re.I)
+LATLNG_RE = re.compile(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)")
+ADDR_TAIL_RE = re.compile(
+    r",\s*([A-Za-z .'\-]+),\s*([A-Z]{2})\s+(\d{5})(?:-\d{4})?\b"
+)
+
+
+def build_search_url(term: str, state: str) -> str:
+    """URL for a Maps search of `term` within `state`."""
+    return MAPS_SEARCH_URL.format(query=quote_plus(f"{term} in {state}"))
+
+
+def parse_place_key(url: str) -> str:
+    """Stable hex feature id from a Maps place URL, or "" if absent."""
+    match = PLACE_KEY_RE.search(url)
+    return match.group(1) if match else ""
+
+
+def parse_latlng(url: str) -> tuple[float | None, float | None]:
+    """(lat, lng) from a Maps place URL, or (None, None) if absent."""
+    match = LATLNG_RE.search(url)
+    if not match:
+        return (None, None)
+    return (float(match.group(1)), float(match.group(2)))
+
+
+def split_address(address: str) -> tuple[str, str, str]:
+    """Best-effort (city, state, zip) split of a formatted US address."""
+    if not address:
+        return ("", "", "")
+    match = ADDR_TAIL_RE.search(address)
+    if not match:
+        return ("", "", "")
+    return (match.group(1).strip(), match.group(2), match.group(3))
