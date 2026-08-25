@@ -339,7 +339,7 @@ class App(tk.Tk):
             background=PALETTE["field"], text="")
         self.blocked_body.pack(anchor="w", pady=(6, 0))
         ttk.Label(card, background=PALETTE["field"], font=self.fonts["small"],
-                  wraplength=700, foreground="#2f6b45",
+                  wraplength=700, foreground=PALETTE["done_ink"],
                   text=("Nothing has been lost. Every club found so far is already "
                         "written to disk, so continuing picks up where it stopped.")
                   ).pack(anchor="w", pady=(10, 0))
@@ -347,10 +347,11 @@ class App(tk.Tk):
         row = ttk.Frame(card, style="Card.TFrame")
         row.pack(anchor="w", pady=(14, 0))
         RoundedButton(row, "Carry on from here", self.on_start, kind="primary",
-                      font=self.fonts["ui_bold"], height=30).pack(side="left")
+                      font=self.fonts["ui_bold"], height=30,
+                      bg=PALETTE["field"]).pack(side="left")
         RoundedButton(row, "Finish here and keep what I have",
                       lambda: self.show("results"), font=self.fonts["ui"],
-                      height=30).pack(side="left", padx=(9, 0))
+                      height=30, bg=PALETTE["field"]).pack(side="left", padx=(9, 0))
 
         ttk.Label(panel, text="WHERE IT GOT TO", style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(18, 6))
@@ -416,11 +417,11 @@ class App(tk.Tk):
             self.run_stage.configure(text=s.stage)
             done_pct = (100 * s.queries_done / s.queries_total) if s.queries_total else 0
             self.run_bar.configure(value=done_pct)
+            left = runstate.remaining(s, now)
             self.run_counts.configure(
                 text=f"{s.queries_done} of {s.queries_total} searches   ·   "
                      f"{s.clubs} clubs saved   ·   {runstate.elapsed(s, now)} elapsed"
-                     + (f"   ·   about {runstate.remaining(s, now)} left"
-                        if runstate.remaining(s, now) else ""))
+                     + (f"   ·   about {left} left" if left else ""))
             self.grid_running.update_coverage(s.coverage)
             self.log_box.configure(state="normal")
             self.log_box.delete("1.0", "end")
@@ -439,8 +440,9 @@ class App(tk.Tk):
                 text=(f"{len(partial)} states are only partly covered "
                       f"({', '.join(partial[:4])}) — they hit Google's 120-result limit."
                       if partial else ""))
-            self._fill_table()
-            self._fill_health()
+            records, _ = scrape.read_cache()
+            self._fill_table(records)
+            self._fill_health(records)
             self.status_detail.configure(text=str(scrape.CSV_PATH))
             self.status_right.configure(text="")
 
@@ -467,10 +469,9 @@ class App(tk.Tk):
                 text=f"{s.queries_total} searches queued · {s.clubs} clubs cached")
             self.status_right.configure(text="")
 
-    def _fill_table(self):
+    def _fill_table(self, records):
         for row in self.table.get_children():
             self.table.delete(row)
-        records, _ = scrape.read_cache()
         for record in records[:200]:
             self.table.insert("", "end", values=(
                 record.get("name", ""),
@@ -480,10 +481,9 @@ class App(tk.Tk):
                 f"{record.get('rating', '')} · {record.get('reviews', '')}".strip(" ·"),
             ))
 
-    def _fill_health(self):
+    def _fill_health(self, records):
         for child in self.health_rows.winfo_children():
             child.destroy()
-        records, _ = scrape.read_cache()
         interesting = ["name", "address", "phone", "website", "emails",
                        "instagram", "owner_name", "owner_phone"]
         for column, rate in runstate.fill_rate_rows(records, interesting):

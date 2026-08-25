@@ -13,7 +13,8 @@ PALETTE = {
     "bg": "#f9f9f6", "panel": "#f3f3f0", "sunken": "#ededea", "line": "#dad9d5",
     "ink": "#2c2a25", "muted": "#71706b", "faint": "#86857f", "field": "#fefdfc",
     "accent": "#3b6fbc", "accent_d": "#2559a3", "selected": "#dfe8f6",
-    "done": "#50a069", "partial": "#dea645", "failed": "#c74f47",
+    "done": "#50a069", "done_ink": "#2f6b45",
+    "partial": "#dea645", "failed": "#c74f47",
 }
 
 STATE_ABBR = {
@@ -188,7 +189,7 @@ class RoundedButton(tk.Canvas):
 
 STATUS_COLORS = {
     "pending": (PALETTE["sunken"], PALETTE["line"], PALETTE["faint"]),
-    "done":    ("#e4f1e8", PALETTE["done"], "#2f6b45"),
+    "done":    ("#e4f1e8", PALETTE["done"], PALETTE["done_ink"]),
     "active":  ("#e3ecf8", PALETTE["accent"], PALETTE["accent_d"]),
     "partial": ("#faf0dc", PALETTE["partial"], "#8a6520"),
     "failed":  ("#f8e8e6", PALETTE["failed"], "#8f342e"),
