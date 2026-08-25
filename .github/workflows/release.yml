@@ -30,8 +30,8 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync
-      # Gates the three builds below, which cost roughly 10x these minutes on
-      # a private repo. A red suite should cost one cheap job, not four.
+      # Gates the three builds below. A red suite should surface in seconds
+      # here rather than after three ~10-minute platform builds.
       - run: uv run pytest -q
 
   build:

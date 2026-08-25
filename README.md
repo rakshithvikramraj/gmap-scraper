@@ -9,7 +9,7 @@ Google Sheet.
 Download the app and open it. Nothing to install first — no Python, no Git.
 
 1. Open the [Releases page](https://github.com/rakshithvikramraj/gmap-scraper/releases)
-   and download the file for your machine:
+   and download the file for your machine. No GitHub account needed:
 
    | Your machine | File |
    |---|---|
@@ -217,8 +217,9 @@ The workflow runs the tests first, then builds on `macos-14` (Apple Silicon),
 release. To try a build without releasing anything, run it by hand from the
 Actions tab — the zips come out as workflow artifacts instead.
 
-Note that a private repo bills macOS runner minutes at 10x and Windows at 2x,
-so a full release costs far more than the wall-clock time suggests.
+Actions minutes are free on this repo's standard runners, so a release costs
+nothing but time — roughly 10-15 minutes per platform, most of it downloading
+Chromium. The three platforms build in parallel.
 
 To build locally on your own machine:
 
