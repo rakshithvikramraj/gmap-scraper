@@ -15,6 +15,7 @@ from pathlib import Path
 
 import geo
 import paths
+import theme
 
 
 def _ensure_tcl_paths() -> None:
@@ -50,16 +51,22 @@ def _ensure_tcl_paths() -> None:
 
 _ensure_tcl_paths()
 
+# Also deliberately before the tkinter import, and for the same class of
+# reason: Tk asks the OS for its font families once, when it starts, so a
+# font registered afterwards would be invisible and every display face would
+# silently fall back to the system sans.
+theme.register_fonts()
+
 # Deliberately below _ensure_tcl_paths(): TCL_LIBRARY/TK_LIBRARY must be set
 # before tkinter is imported, or this Tk build can't find its own init.tcl.
 import tkinter as tk  # noqa: E402
-import tkinter.font as tkfont  # noqa: E402
 from tkinter import messagebox, ttk  # noqa: E402
 
 import runstate
 import scrape
 import settings
-from widgets import PALETTE, CoverageGrid, RoundedButton
+from theme import PALETTE
+from widgets import CoverageGrid, RoundedButton
 
 SETTINGS_PATH = paths.data_dir() / "settings.json"
 
@@ -68,67 +75,6 @@ SETTINGS_PATH = paths.data_dir() / "settings.json"
 # block), and nothing else moves the panel behind their back.
 PANEL_FOR_STATUS = {"idle": "setup", "running": "running",
                     "finished": "results", "blocked": "blocked"}
-
-UI_FACES = ("Segoe UI", "Helvetica Neue", "DejaVu Sans")
-MONO_FACES = ("Consolas", "Menlo", "DejaVu Sans Mono", "Courier New")
-
-
-def resolve_face(candidates) -> str:
-    """First installed family from `candidates`, else Tk's own default.
-
-    No single face ships on both macOS and Windows, so the app picks per
-    machine rather than naming one and getting a silent substitution.
-    """
-    available = set(tkfont.families())
-    for name in candidates:
-        if name in available:
-            return name
-    return tkfont.nametofont("TkDefaultFont").actual("family")
-
-
-def build_fonts() -> dict:
-    ui, mono = resolve_face(UI_FACES), resolve_face(MONO_FACES)
-    return {
-        "ui": tkfont.Font(family=ui, size=12),
-        "ui_bold": tkfont.Font(family=ui, size=12, weight="bold"),
-        "small": tkfont.Font(family=ui, size=10),
-        "label": tkfont.Font(family=ui, size=9, weight="bold"),
-        "big": tkfont.Font(family=ui, size=22, weight="bold"),
-        "mono": tkfont.Font(family=mono, size=11),
-        "cell": tkfont.Font(family=ui, size=10, weight="bold"),
-    }
-
-
-def apply_theme(root) -> None:
-    """Force clam and restyle it to the design palette.
-
-    Native themes are deliberately rejected: the app must look the same on
-    macOS and Windows, and clam is the one theme present on both that accepts
-    a full restyle.
-    """
-    style = ttk.Style(root)
-    style.theme_use("clam")
-    style.configure(".", background=PALETTE["bg"], foreground=PALETTE["ink"],
-                    fieldbackground=PALETTE["field"], bordercolor=PALETTE["line"],
-                    lightcolor=PALETTE["line"], darkcolor=PALETTE["line"])
-    style.configure("TFrame", background=PALETTE["bg"])
-    style.configure("Panel.TFrame", background=PALETTE["panel"])
-    style.configure("Card.TFrame", background=PALETTE["field"],
-                    relief="solid", borderwidth=1)
-    style.configure("TLabel", background=PALETTE["bg"], foreground=PALETTE["ink"])
-    style.configure("Muted.TLabel", foreground=PALETTE["muted"])
-    style.configure("Faint.TLabel", foreground=PALETTE["faint"])
-    style.configure("TCheckbutton", background=PALETTE["bg"],
-                    focuscolor=PALETTE["accent"])
-    style.configure("TProgressbar", background=PALETTE["accent"],
-                    troughcolor=PALETTE["sunken"], borderwidth=0, thickness=8)
-    style.configure("Treeview", background=PALETTE["field"],
-                    fieldbackground=PALETTE["field"], borderwidth=1, rowheight=26)
-    style.configure("Treeview.Heading", background=PALETTE["panel"],
-                    foreground=PALETTE["muted"], relief="flat")
-    style.map("Treeview", background=[("selected", PALETTE["selected"])],
-              foreground=[("selected", PALETTE["ink"])])
-
 
 def _us_places(states):
     """`geo.Place`s for a list of plain US state names from `prefs["states"]`.
@@ -151,8 +97,8 @@ class App(tk.Tk):
         self.minsize(960, 660)
         self.configure(bg=PALETTE["bg"])
 
-        self.fonts = build_fonts()
-        apply_theme(self)
+        self.fonts = theme.build_fonts()
+        theme.apply_theme(self)
 
         self.prefs = settings.load(SETTINGS_PATH)
         records, done_pairs = scrape.read_cache()
@@ -197,9 +143,17 @@ class App(tk.Tk):
                       font=self.fonts["ui"], bg=PALETTE["panel"]
                       ).pack(side="left", padx=(10, 0))
 
+        mark = ttk.Frame(bar, style="Panel.TFrame")
+        mark.pack(side="left", expand=True)
+        for text, style in ((theme.tracked("Wkey"), "Muted.TLabel"),
+                            ("·", "Lime.TLabel"),
+                            (theme.tracked("Lead Scraper"), "Muted.TLabel")):
+            ttk.Label(mark, text=text, font=self.fonts["wordmark"], style=style,
+                      background=PALETTE["panel"]).pack(side="left")
+
         right = ttk.Frame(bar, style="Panel.TFrame")
         right.pack(side="right")
-        ttk.Label(right, text="SAVING TO", style="Faint.TLabel",
+        ttk.Label(right, text=theme.tracked("Saving To"), style="Faint.TLabel",
                   font=self.fonts["label"], background=PALETTE["panel"]).pack(side="left", padx=(0, 8))
         ttk.Label(right, text=str(scrape.CSV_PATH), font=self.fonts["mono"],
                   style="Muted.TLabel", background=PALETTE["panel"]).pack(side="left")
@@ -249,13 +203,15 @@ class App(tk.Tk):
 
         terms_box = ttk.Frame(top)
         terms_box.pack(side="left", fill="y")
-        ttk.Label(terms_box, text="SEARCH TERMS", style="Faint.TLabel",
+        ttk.Label(terms_box, text=theme.tracked("Search Terms"), style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(0, 6))
         self.terms_list = tk.Listbox(
             terms_box, width=38, height=5, font=self.fonts["ui"],
-            bg=PALETTE["field"], fg=PALETTE["ink"], relief="solid", bd=1,
-            highlightthickness=0, selectbackground=PALETTE["selected"],
-            selectforeground=PALETTE["ink"], activestyle="none",
+            bg=PALETTE["panel"], fg=PALETTE["ink"], relief="flat", bd=0,
+            highlightthickness=1, highlightbackground=PALETTE["cellline"],
+            highlightcolor=PALETTE["cellline"],
+            selectbackground=PALETTE["row_sel"],
+            selectforeground=PALETTE["bright"], activestyle="none",
         )
         self.terms_list.pack()
         for term in self.prefs["terms"]:
@@ -271,7 +227,7 @@ class App(tk.Tk):
 
         opts = ttk.Frame(top, padding=(22, 0, 0, 0))
         opts.pack(side="left", fill="both", expand=True)
-        ttk.Label(opts, text="OPTIONS", style="Faint.TLabel",
+        ttk.Label(opts, text=theme.tracked("Options"), style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(0, 6))
         self.var_enrich = tk.BooleanVar(value=self.prefs["enrich"])
         self.var_headed = tk.BooleanVar(value=self.prefs["headed"])
@@ -305,7 +261,7 @@ class App(tk.Tk):
 
         grid_head = ttk.Frame(panel)
         grid_head.pack(fill="x", pady=(16, 6))
-        ttk.Label(grid_head, text="COVERAGE", style="Faint.TLabel",
+        ttk.Label(grid_head, text=theme.tracked("Coverage"), style="Faint.TLabel",
                   font=self.fonts["label"]).pack(side="left")
         self.legend = ttk.Label(grid_head, style="Muted.TLabel", font=self.fonts["small"],
                                 text="finished · partly done · failed · not started")
@@ -343,17 +299,22 @@ class App(tk.Tk):
         ttk.Label(stats, style="Muted.TLabel", font=self.fonts["small"],
                   text="Progress is saved as it goes").pack(side="right")
 
-        ttk.Label(panel, text="COVERAGE", style="Faint.TLabel",
+        ttk.Label(panel, text=theme.tracked("Coverage"), style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(16, 6))
         self.grid_running = CoverageGrid(panel, scrape.ALL_50, cell_h=40,
                                          font=self.fonts["cell"])
         self.grid_running.pack(fill="x")
 
-        ttk.Label(panel, text="ACTIVITY", style="Faint.TLabel",
+        ttk.Label(panel, text=theme.tracked("Activity"), style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(14, 6))
         self.log_box = tk.Text(panel, height=7, font=self.fonts["mono"],
-                               bg=PALETTE["field"], fg=PALETTE["muted"],
-                               relief="solid", bd=1, highlightthickness=0,
+                               bg=PALETTE["panel"], fg=PALETTE["dim"],
+                               relief="flat", bd=0, highlightthickness=1,
+                               highlightbackground=PALETTE["cellline"],
+                               highlightcolor=PALETTE["cellline"],
+                               insertbackground=PALETTE["ink"],
+                               selectbackground=PALETTE["row_sel"],
+                               selectforeground=PALETTE["bright"],
                                wrap="none", state="disabled")
         self.log_box.pack(fill="both", expand=True)
 
@@ -391,7 +352,7 @@ class App(tk.Tk):
 
         health = ttk.Frame(body, padding=(16, 0, 0, 0))
         health.pack(side="right", fill="y")
-        ttk.Label(health, text="HOW COMPLETE THE DATA IS", style="Faint.TLabel",
+        ttk.Label(health, text=theme.tracked("How complete the data is"), style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(0, 8))
         self.health_rows = ttk.Frame(health)
         self.health_rows.pack(fill="both", expand=True)
@@ -419,7 +380,7 @@ class App(tk.Tk):
             background=PALETTE["field"], text="")
         self.blocked_body.pack(anchor="w", pady=(6, 0))
         ttk.Label(card, background=PALETTE["field"], font=self.fonts["small"],
-                  wraplength=700, foreground=PALETTE["done_ink"],
+                  wraplength=700, foreground=PALETTE["lime_ink"],
                   text=("Nothing has been lost. Every club found so far is already "
                         "written to disk, so continuing picks up where it stopped.")
                   ).pack(anchor="w", pady=(10, 0))
@@ -433,7 +394,7 @@ class App(tk.Tk):
                       lambda: self._go("results"), font=self.fonts["ui"],
                       height=30, bg=PALETTE["field"]).pack(side="left", padx=(9, 0))
 
-        ttk.Label(panel, text="WHERE IT GOT TO", style="Faint.TLabel",
+        ttk.Label(panel, text=theme.tracked("Where It Got To"), style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(18, 6))
         self.grid_blocked = CoverageGrid(panel, scrape.ALL_50, cell_h=40,
                                          font=self.fonts["cell"])
@@ -643,8 +604,10 @@ class App(tk.Tk):
         now = time.monotonic() if now is None else now
         s = self.run_state
 
-        dot = {"idle": PALETTE["partial"], "running": PALETTE["accent"],
-               "finished": PALETTE["done"], "blocked": PALETTE["partial"]}[s.status]
+        # "accent" and "done" both became lime, which would make running and
+        # finished the same dot. Idle steps back to faint; blocked keeps amber.
+        dot = {"idle": PALETTE["faint"], "running": PALETTE["lime"],
+               "finished": PALETTE["lime"], "blocked": PALETTE["amber"]}[s.status]
         self.status_dot.delete("all")
         self.status_dot.create_oval(0, 0, 9, 9, fill=dot, outline=dot)
         self.status_text.configure(
@@ -747,9 +710,9 @@ class App(tk.Tk):
             ttk.Label(row, text=column, width=13, style="Muted.TLabel",
                       font=self.fonts["small"]).pack(side="left")
             meter = tk.Canvas(row, width=120, height=6, highlightthickness=0,
-                              bd=0, bg=PALETTE["sunken"])
+                              bd=0, bg=PALETTE["hairline"])
             meter.pack(side="left", padx=6)
-            colour = PALETTE["done"] if rate >= 0.4 else PALETTE["partial"]
+            colour = PALETTE["lime"] if rate >= 0.4 else PALETTE["amber"]
             meter.create_rectangle(0, 0, max(1, 120 * rate), 6,
                                    fill=colour, outline=colour)
             ttk.Label(row, text=f"{rate:.0%}", width=5, style="Muted.TLabel",

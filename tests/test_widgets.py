@@ -65,3 +65,8 @@ def test_grid_height_counts_partial_rows():
 def test_status_colour_covers_every_state_the_reducer_can_produce():
     for status in ("pending", "done", "active", "partial", "failed"):
         assert status in widgets.STATUS_COLORS
+
+
+def test_widgets_paints_from_the_shared_theme_palette():
+    import theme
+    assert widgets.PALETTE is theme.PALETTE, "one palette, not a copy that can drift"

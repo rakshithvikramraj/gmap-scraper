@@ -72,3 +72,17 @@ def test_a_platform_without_a_registration_api_reports_nothing_and_does_not_rais
     """The Linux test runner takes this path, and so would any future one."""
     monkeypatch.setattr(theme.sys, "platform", "sunos5")
     assert theme.register_fonts() == []
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin" and not sys.platform.startswith("win"),
+    reason="only macOS and Windows have a font-registration API; Linux CI has none",
+)
+def test_registering_twice_still_reports_the_fonts_as_available():
+    """CoreText refuses a second registration and reports it like a failure.
+
+    Without the memo, the second caller concludes Unbounded is missing and
+    falls back to the system face while the font sits there working.
+    """
+    assert theme.register_fonts() == theme.register_fonts()
+    assert set(theme.register_fonts()) == {"Unbounded-Regular.ttf", "Unbounded-Bold.ttf"}

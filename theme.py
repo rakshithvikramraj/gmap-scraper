@@ -120,10 +120,18 @@ def _register_windows(path: Path) -> bool:
     return bool(ctypes.windll.gdi32.AddFontResourceExW(str(path), private, 0))
 
 
+# Files this process has already handed to the OS. CoreText refuses to
+# register a font twice and reports the refusal exactly like a failure, so
+# without this a second caller would conclude the font was unavailable and
+# fall back to the system face while Unbounded sat there working.
+_registered: set = set()
+
+
 def register_fonts(directory=None) -> list:
     """Register every .ttf in `directory` with the OS, for this process only.
 
-    Returns the filenames the OS accepted, so a caller can tell the difference
+    Returns the filenames that are registered as a result -- whether this call
+    did it or an earlier one already had -- so a caller can tell the difference
     between "the font is available" and "Tk is about to substitute silently".
 
     Must run before tk.Tk() is constructed: Tk asks the OS for its family list
@@ -145,8 +153,13 @@ def register_fonts(directory=None) -> list:
         return []
     accepted = []
     for font in sorted(folder.glob("*.ttf")):
+        resolved = font.resolve()
+        if resolved in _registered:
+            accepted.append(font.name)
+            continue
         try:
             if register(font):
+                _registered.add(resolved)
                 accepted.append(font.name)
         except Exception:
             continue

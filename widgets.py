@@ -8,14 +8,9 @@ activation and disabled state explicitly.
 
 import math
 import tkinter as tk
+from typing import NamedTuple
 
-PALETTE = {
-    "bg": "#f9f9f6", "panel": "#f3f3f0", "sunken": "#ededea", "line": "#dad9d5",
-    "ink": "#2c2a25", "muted": "#71706b", "faint": "#86857f", "field": "#fefdfc",
-    "accent": "#3b6fbc", "accent_d": "#2559a3", "selected": "#dfe8f6",
-    "done": "#50a069", "done_ink": "#2f6b45",
-    "partial": "#dea645", "failed": "#c74f47",
-}
+from theme import PALETTE
 
 STATE_ABBR = {
     "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
@@ -58,21 +53,25 @@ def button_width(text_width: int, pad_x: int, min_width: int = 0) -> int:
 
 _KINDS = {
     "primary": {
-        "fill": PALETTE["accent"], "hover": PALETTE["accent_d"],
-        "text": "#ffffff", "border": PALETTE["accent"],
+        "fill": PALETTE["lime"], "hover": PALETTE["lime_d"],
+        "text": PALETTE["onlime"], "border": PALETTE["lime"],
     },
     "secondary": {
-        "fill": PALETTE["field"], "hover": PALETTE["sunken"],
-        "text": PALETTE["ink"], "border": PALETTE["line"],
+        "fill": PALETTE["sunken"], "hover": PALETTE["kbd"],
+        "text": PALETTE["soft"], "border": PALETTE["line"],
+    },
+    "quiet": {
+        "fill": PALETTE["panel"], "hover": PALETTE["sunken"],
+        "text": PALETTE["dim"], "border": PALETTE["hairline"],
     },
     "danger": {
-        "fill": PALETTE["field"], "hover": "#f7ecea",
-        "text": PALETTE["failed"], "border": PALETTE["failed"],
+        "fill": PALETTE["sunken"], "hover": PALETTE["cell_failed"],
+        "text": PALETTE["coral"], "border": PALETTE["failed_edge"],
     },
 }
 _DISABLED = {
-    "fill": PALETTE["sunken"], "hover": PALETTE["sunken"],
-    "text": PALETTE["faint"], "border": PALETTE["line"],
+    "fill": PALETTE["panel"], "hover": PALETTE["panel"],
+    "text": PALETTE["faint"], "border": PALETTE["hairline"],
 }
 
 
@@ -86,7 +85,7 @@ class RoundedButton(tk.Canvas):
     """
 
     def __init__(self, master, text, command=None, *, kind="secondary",
-                 font=None, radius=5, pad_x=14, height=28, min_width=0, **kw):
+                 font=None, radius=8, pad_x=14, height=28, min_width=0, **kw):
         super().__init__(master, height=height, highlightthickness=0, bd=0,
                          bg=kw.pop("bg", PALETTE["bg"]), takefocus=1, **kw)
         self._text = text
@@ -152,7 +151,7 @@ class RoundedButton(tk.Canvas):
             self.create_polygon(
                 rounded_points(inset + 2, inset + 2, w - inset - 2, h - inset - 2,
                                max(0, self._radius - 2)),
-                smooth=True, fill="", outline=PALETTE["accent_d"], width=1,
+                smooth=True, fill="", outline=PALETTE["lime"], width=1,
             )
         self.create_text(w / 2, h / 2, text=self._text, fill=colors["text"],
                          font=self._font)
@@ -187,12 +186,15 @@ class RoundedButton(tk.Canvas):
         return "break"
 
 
+# Green is deliberately absent. Lime already means "finished", and at cell
+# size a green sits too close to it to tell apart -- so partly-done takes
+# amber and failed takes coral.
 STATUS_COLORS = {
-    "pending": (PALETTE["sunken"], PALETTE["line"], PALETTE["faint"]),
-    "done":    ("#e4f1e8", PALETTE["done"], PALETTE["done_ink"]),
-    "active":  ("#e3ecf8", PALETTE["accent"], PALETTE["accent_d"]),
-    "partial": ("#faf0dc", PALETTE["partial"], "#8a6520"),
-    "failed":  ("#f8e8e6", PALETTE["failed"], "#8f342e"),
+    "pending": (PALETTE["raised"], PALETTE["cellline"], PALETTE["cellink"]),
+    "done":    (PALETTE["cell_done"], PALETTE["done_edge"], PALETTE["lime_ink"]),
+    "active":  (PALETTE["cell_active"], PALETTE["lime"], PALETTE["lime_hi"]),
+    "partial": (PALETTE["cell_partial"], PALETTE["partial_edge"], PALETTE["amber_ink"]),
+    "failed":  (PALETTE["cell_failed"], PALETTE["failed_edge"], PALETTE["coral_ink"]),
 }
 
 
