@@ -12,6 +12,7 @@ Source: https://download.geonames.org/export/dump/ (CC BY 4.0)
 """
 
 import io
+import sys
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -60,7 +61,22 @@ def group_regions(regions: dict[str, str], countries: dict[str, str]) -> dict[st
         country_name = by_iso.get(iso)
         if not country_name or not admin1:
             continue
-        grouped.setdefault(country_name, {})[region_name] = admin1
+        country_regions = grouped.setdefault(country_name, {})
+        existing = country_regions.get(region_name)
+        if existing is not None and existing != admin1:
+            # Two admin1 codes render to the same display name within one
+            # country. The second silently wins below, and parse_cities'
+            # reverse index is built from this already-collapsed dict, so
+            # any cities filed under the losing admin1 code vanish with no
+            # trace. Warn on stderr so a maintainer running the refresh
+            # notices and can rename one of them upstream.
+            print(
+                f"WARNING: {country_name!r} has two regions named {region_name!r} "
+                f"(admin1 codes {existing!r} and {admin1!r}); keeping {admin1!r}, "
+                f"cities under {existing!r} will be dropped",
+                file=sys.stderr,
+            )
+        country_regions[region_name] = admin1
     return grouped
 
 

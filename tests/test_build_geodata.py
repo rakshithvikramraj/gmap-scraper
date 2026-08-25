@@ -43,6 +43,26 @@ def test_regions_of_an_unknown_country_are_dropped(countries):
     assert build_geodata.group_regions(regions, countries) == {}
 
 
+def test_a_region_name_collision_is_reported_not_silently_dropped(countries, capsys):
+    # Two different admin1 codes in the same country that happen to render to
+    # the same display name would otherwise collide silently in REGIONS, and
+    # any cities filed under the losing code would vanish from CITIES with no
+    # trace. The generator must at least surface this on stderr.
+    regions = build_geodata.parse_regions(
+        "US.XX\tDuplicate\tDuplicate\t1\nUS.YY\tDuplicate\tDuplicate\t2\n"
+    )
+    grouped = build_geodata.group_regions(regions, countries)
+
+    warning = capsys.readouterr().err
+    assert "United States" in warning
+    assert "Duplicate" in warning
+    assert "XX" in warning
+    assert "YY" in warning
+    # One of the two codes still survives - a collision is reported, not a
+    # silent total loss of the region.
+    assert grouped["United States"]["Duplicate"] in ("XX", "YY")
+
+
 def test_cities_are_keyed_by_country_and_region_name(countries, regions):
     grouped = build_geodata.group_regions(regions, countries)
     cities = build_geodata.parse_cities(
