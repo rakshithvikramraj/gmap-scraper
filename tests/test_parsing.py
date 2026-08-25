@@ -1,3 +1,4 @@
+import geo
 import scrape
 
 
@@ -18,9 +19,9 @@ def test_columns_are_unique_and_start_with_place_key():
 
 
 def test_build_search_url_encodes_term_and_state():
-    url = scrape.build_search_url("padel club", "New York")
+    url = scrape.build_search_url("padel club", geo.Place("United States", "New York"))
     assert url.startswith("https://www.google.com/maps/search/")
-    assert "padel+club+in+New+York" in url
+    assert "padel+club+in+New+York%2C+United+States" in url
     assert "hl=en" in url
 
 
@@ -540,3 +541,36 @@ def test_run_stage2_records_a_crash_instead_of_aborting(tmp_path, monkeypatch, c
     records, _ = scrape.read_cache(cache)
     assert records[0]["enriched_at"]
     assert "ValueError" in records[0]["enrich_error"]
+
+
+def test_search_url_puts_the_city_first():
+    url = scrape.build_search_url("dental clinic", geo.Place("United States", "Texas", "Austin"))
+    assert "dental+clinic+in+Austin%2C+Texas%2C+United+States" in url
+
+
+def test_search_url_for_a_whole_country():
+    url = scrape.build_search_url("gym", geo.Place(country="India"))
+    assert "gym+in+India" in url
+
+
+def test_search_url_sets_gl_from_the_country():
+    url = scrape.build_search_url("gym", geo.Place(country="India"))
+    assert "gl=in" in url
+
+
+def test_search_url_keeps_hl_english_everywhere():
+    # Localised page chrome would break every selector in SELECTORS.
+    url = scrape.build_search_url("gym", geo.Place(country="Japan", region="Kanagawa"))
+    assert "hl=en" in url
+    assert "hl=ja" not in url
+
+
+def test_an_unknown_country_falls_back_to_us():
+    url = scrape.build_search_url("gym", geo.Place(country="Atlantis"))
+    assert "gl=us" in url
+
+
+def test_search_url_of_an_empty_place_searches_the_bare_term():
+    url = scrape.build_search_url("gym", geo.Place())
+    assert "gym" in url
+    assert "+in+" not in url

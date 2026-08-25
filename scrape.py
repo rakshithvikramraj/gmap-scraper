@@ -22,6 +22,7 @@ from google.auth.exceptions import DefaultCredentialsError, RefreshError
 from gspread.utils import rowcol_to_a1
 from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
 
+import geo
 import paths
 
 # ---------------------------------------------------------------------------
@@ -79,7 +80,11 @@ CSV_PATH = DATA_DIR / "results.csv"
 # Parsing functions
 # ---------------------------------------------------------------------------
 
-MAPS_SEARCH_URL = "https://www.google.com/maps/search/{query}?hl=en&gl=us"
+# gl is filled per query; hl stays English in every country so the page text
+# the SELECTORS block matches on does not change under us.
+MAPS_SEARCH_URL = "https://www.google.com/maps/search/{query}?hl=en&gl={gl}"
+
+DEFAULT_GL = "us"
 
 PLACE_KEY_RE = re.compile(r"!1s(0x[0-9a-f]+:0x[0-9a-f]+)", re.I)
 LATLNG_RE = re.compile(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)")
@@ -88,9 +93,18 @@ ADDR_TAIL_RE = re.compile(
 )
 
 
-def build_search_url(term: str, state: str) -> str:
-    """URL for a Maps search of `term` within `state`."""
-    return MAPS_SEARCH_URL.format(query=quote_plus(f"{term} in {state}"))
+def build_search_url(term: str, place: "geo.Place") -> str:
+    """URL for a Maps search of `term` within `place`.
+
+    An empty place searches the bare term, which is what a caller with no
+    geography selected means.
+    """
+    location = place.query_text()
+    query = f"{term} in {location}" if location else term
+    return MAPS_SEARCH_URL.format(
+        query=quote_plus(query),
+        gl=geo.country_code(place.country) or DEFAULT_GL,
+    )
 
 
 def parse_place_key(url: str) -> str:
@@ -720,7 +734,7 @@ def collect_result_links(page) -> list[str]:
     return links
 
 
-def scrape_listing(page, url: str, term: str, state: str) -> dict:
+def scrape_listing(page, url: str, term: str, place: "geo.Place") -> dict:
     """Open one listing and return its shaped record."""
     page.goto(url, wait_until="domcontentloaded", timeout=45000)
     page.wait_for_selector(SELECTORS["name"], timeout=20000)
@@ -733,7 +747,7 @@ def scrape_listing(page, url: str, term: str, state: str) -> dict:
         "website": _attr(page, SELECTORS["website"], "href"),
         "rating_block": _text(page, SELECTORS["rating_block"]),
     }
-    return build_record(raw, term, state, utc_now())
+    return build_record(raw, term, place.query_text(), utc_now())
 
 
 def should_mark_done(failed: int, complete: bool) -> bool:
@@ -747,28 +761,33 @@ def should_mark_done(failed: int, complete: bool) -> bool:
 
 
 def scrape_query(
-    page, term: str, state: str, limit: int | None
+    page, term: str, place: "geo.Place", limit: int | None
 ) -> tuple[int, int, bool]:
-    """Scrape every listing for one (term, state) pair.
+    """Scrape every listing for one (term, place) pair.
 
     Returns (scraped, failed, complete). `complete` says whether the pair was
     covered end to end: a --limit truncation and a missing results feed both
     make it False. Only a complete pair with no failures may be marked done,
     or the listings it never reached are lost for good.
     """
-    page.goto(build_search_url(term, state), wait_until="domcontentloaded", timeout=60000)
+    location = place.query_text()
+    # Coverage identity for `runstate`: a whole-country run has no region, so
+    # the country stands in rather than leaving the coverage cell blank.
+    place_state = place.region or place.country
+    page.goto(build_search_url(term, place), wait_until="domcontentloaded", timeout=60000)
     accept_consent(page)
     if is_blocked(page):
-        raise RuntimeError(f"blocked on {term} / {state} - rerun with --headed")
+        raise RuntimeError(f"blocked on {term} / {location} - rerun with --headed")
 
     if "/maps/place/" in page.url:
-        print(f"  single result for {term} / {state}")
-        emit("listings_found", term=term, state=state, count=1, at_cap=False)
+        print(f"  single result for {term} / {location}")
+        emit("listings_found", term=term, state=place_state, country=place.country,
+             city=place.city, count=1, at_cap=False)
         try:
-            record = scrape_listing(page, page.url, term, state)
+            record = scrape_listing(page, page.url, term, place)
             append_record(record)
             emit("listing_saved", name=record.get("name", ""),
-                 city=record.get("city", ""), state=record.get("state", ""))
+                 city=record.get("city", ""), state=place_state, country=place.country)
             return 1, 0, True
         except Exception as exc:
             print(f"  skipped the single result: {type(exc).__name__}: {exc}")
@@ -778,19 +797,20 @@ def scrape_query(
     try:
         page.wait_for_selector(SELECTORS["feed"], timeout=20000)
     except PWTimeout:
-        print(f"  no results feed for {term} / {state}")
-        emit("listings_found", term=term, state=state, count=0, at_cap=False)
+        print(f"  no results feed for {term} / {location}")
+        emit("listings_found", term=term, state=place_state, country=place.country,
+             city=place.city, count=0, at_cap=False)
         return 0, 0, False
 
     links = collect_result_links(page)
     complete = limit is None
     if limit:
         links = links[:limit]
-    print(f"  {len(links)} listings for {term} / {state}")
-    emit("listings_found", term=term, state=state, count=len(links),
-         at_cap=len(links) >= 118)
+    print(f"  {len(links)} listings for {term} / {location}")
+    emit("listings_found", term=term, state=place_state, country=place.country,
+         city=place.city, count=len(links), at_cap=len(links) >= 118)
     if len(links) >= 118:
-        print("  WARNING: at the ~120 result cap; this state is undersampled")
+        print("  WARNING: at the ~120 result cap; this place is undersampled")
 
     scraped = 0
     failed = 0
@@ -798,11 +818,11 @@ def scrape_query(
         if stop_requested():
             break
         try:
-            record = scrape_listing(page, link, term, state)
+            record = scrape_listing(page, link, term, place)
             append_record(record)
             scraped += 1
             emit("listing_saved", name=record.get("name", ""),
-                 city=record.get("city", ""), state=record.get("state", ""))
+                 city=record.get("city", ""), state=place_state, country=place.country)
         except Exception as exc:
             failed += 1
             print(f"  skipped a listing: {type(exc).__name__}: {exc}")
@@ -811,11 +831,11 @@ def scrape_query(
     return scraped, failed, complete
 
 
-def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
-    """Scrape every (term, state) pair not already in the cache."""
+def run_stage1(terms, places, limit=None, headless=True, force=False) -> None:
+    """Scrape every (term, place) pair not already in the cache."""
     _, done = read_cache()
-    emit("run_start", terms=list(terms), states=list(states),
-         total_queries=len(terms) * len(states))
+    emit("run_start", terms=list(terms), states=[place.query_text() for place in places],
+         total_queries=len(terms) * len(places))
     consecutive_failures = 0
     # Must precede sync_playwright(): the driver reads the browser path once,
     # when it starts. A no-op outside a bundle.
@@ -827,21 +847,28 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
         )
         page = context.new_page()
         for term in terms:
-            for state in states:
+            for place in places:
                 if stop_requested():
                     browser.close()
                     return
-                if not force and (term, state) in done:
-                    print(f"skip (cached): {term} / {state}")
-                    emit("query_skipped", term=term, state=state)
+                location = place.query_text()
+                # Coverage identity for `runstate`: a whole-country run has no
+                # region, so the country stands in for a blank coverage cell.
+                place_state = place.region or place.country
+                if not force and (term, location) in done:
+                    print(f"skip (cached): {term} / {location}")
+                    emit("query_skipped", term=term, state=place_state,
+                         country=place.country, city=place.city)
                     continue
-                print(f"searching: {term} / {state}")
-                emit("query_start", term=term, state=state)
+                print(f"searching: {term} / {location}")
+                emit("query_start", term=term, state=place_state,
+                     country=place.country, city=place.city)
                 try:
-                    scraped, failed, complete = scrape_query(page, term, state, limit)
+                    scraped, failed, complete = scrape_query(page, term, place, limit)
                 except Exception as exc:
-                    print(f"  FAILED {term} / {state}: {exc}")
-                    emit("query_failed", term=term, state=state,
+                    print(f"  FAILED {term} / {location}: {exc}")
+                    emit("query_failed", term=term, state=place_state,
+                         country=place.country, city=place.city,
                          error=f"{type(exc).__name__}: {exc}")
                     consecutive_failures += 1
                     if consecutive_failures >= CONSECUTIVE_FAILURE_LIMIT:
@@ -851,7 +878,8 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
                             "died.\nNothing scraped so far is lost \u2014 re-run to resume, "
                             "or use --headed to solve a CAPTCHA by hand."
                         )
-                        emit("blocked", term=term, state=state,
+                        emit("blocked", term=term, state=place_state,
+                             country=place.country, city=place.city,
                              consecutive=consecutive_failures)
                         browser.close()
                         return
@@ -859,20 +887,21 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
                     continue
                 consecutive_failures = 0
                 if should_mark_done(failed, complete) and not stop_requested():
-                    mark_pair_done(term, state)
+                    mark_pair_done(term, location)
                 else:
                     reason = (
                         f"{failed} listing(s) failed" if failed
                         else "coverage incomplete"
                     )
                     print(
-                        f"  {reason}; leaving {term} / {state} unmarked "
+                        f"  {reason}; leaving {term} / {location} unmarked "
                         "so a re-run retries it"
                     )
                 # `complete` was computed before the stop flag broke the
-                # listing loop, so a stopped state would paint green "done" in
+                # listing loop, so a stopped place would paint green "done" in
                 # the grid while the cache correctly left it unmarked.
-                emit("query_done", term=term, state=state, scraped=scraped,
+                emit("query_done", term=term, state=place_state,
+                     country=place.country, city=place.city, scraped=scraped,
                      failed=failed, complete=complete and not stop_requested())
                 _pause(PAUSE_QUERY)
         browser.close()
@@ -1087,7 +1116,15 @@ def main(argv: list[str] | None = None) -> int:
         description="Scrape club listings from Google Maps into a Google Sheet."
     )
     parser.add_argument("--terms", help="comma-separated search terms")
-    parser.add_argument("--states", help="comma-separated states, e.g. Texas,Florida")
+    parser.add_argument("--states", help="comma-separated US states, e.g. Texas,Florida")
+    parser.add_argument("--country", action="append", default=[],
+                        help="search a whole country, repeatable")
+    parser.add_argument("--region", action="append", default=[],
+                        metavar="REGION,COUNTRY",
+                        help='e.g. --region "Texas,United States", repeatable')
+    parser.add_argument("--city", action="append", default=[],
+                        metavar="CITY,REGION,COUNTRY",
+                        help='e.g. --city "Austin,Texas,United States", repeatable')
     parser.add_argument("--limit", type=int, help="max listings per query")
     parser.add_argument("--no-enrich", action="store_true", help="skip Stage 2")
     parser.add_argument("--sheets-only", action="store_true", help="push cache only")
@@ -1100,9 +1137,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if check_auth() else 1
 
     if not args.sheets_only:
+        places = [geo.Place(country="United States", region=state)
+                  for state in parse_list_arg(args.states, STATES)]
+        if args.country or args.region or args.city:
+            places = [geo.Place(country=name) for name in args.country]
+            for entry in args.region:
+                region, _, country = entry.partition(",")
+                places.append(geo.Place(country=country.strip(), region=region.strip()))
+            for entry in args.city:
+                city, _, rest = entry.partition(",")
+                region, _, country = rest.partition(",")
+                places.append(geo.Place(country=country.strip(),
+                                        region=region.strip(), city=city.strip()))
         run_stage1(
             parse_list_arg(args.terms, SEARCH_TERMS),
-            parse_list_arg(args.states, STATES),
+            places,
             limit=args.limit,
             headless=HEADLESS and not args.headed,
             force=args.force,
