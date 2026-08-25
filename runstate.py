@@ -22,7 +22,7 @@ class RunState:
     # six cities reports six times per term, and the term is only finished
     # when the last one lands.
     term_left: dict = field(default_factory=dict)
-    clubs: int = 0
+    saved: int = 0            # listings written this run, whatever they are
     queries_done: int = 0
     queries_total: int = 0
     started_at: float | None = None
@@ -180,7 +180,7 @@ def fold(state: RunState, kind: str, data: dict, now: float | None = None) -> Ru
             s.at_cap.append(data["state"])
 
     elif kind == "listing_saved":
-        s.clubs += 1
+        s.saved += 1
         where = f" · {data['city']}, {data['state']}" if data.get("city") else ""
         note(f"Saved \"{data['name']}\"{where}")
 

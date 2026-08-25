@@ -1,4 +1,4 @@
-"""Desktop window for the club scraper.
+"""Desktop window for the lead scraper.
 
 Owns the main thread. Never scrapes: a worker thread does that and reports
 through an event queue this window drains on a timer. Nothing here may be
@@ -104,7 +104,7 @@ class App(tk.Tk):
         self.run_state = runstate.initial_state(
             done_pairs, self.prefs["terms"], geo.leaf_places(self.selection)
         )
-        self.run_state.clubs = len(records)
+        self.run_state.saved = len(records)
         self.run_state.log.extend(self._startup_notes)
 
         self.events = queue.Queue()
@@ -287,9 +287,19 @@ class App(tk.Tk):
         self.coverage_head = ttk.Label(grid_head, style="Faint.TLabel",
                                        font=self.fonts["label"])
         self.coverage_head.pack(side="left")
-        self.legend = ttk.Label(grid_head, style="Muted.TLabel", font=self.fonts["small"],
-                                text="finished · partly done · failed · not started")
-        self.legend.pack(side="right")
+        # Each word in its own colour: a legend that names four colours in
+        # one grey tells you the four statuses exist and nothing else.
+        legend = ttk.Frame(grid_head)
+        legend.pack(side="right")
+        for text, colour in (("finished", "lime"), ("partly done", "amber"),
+                             ("failed", "coral"), ("not started", "seg")):
+            swatch = tk.Canvas(legend, width=8, height=8, highlightthickness=0,
+                               bd=0, bg=PALETTE["bg"])
+            swatch.create_rectangle(0, 0, 8, 8, fill=PALETTE[colour],
+                                    outline=PALETTE[colour])
+            swatch.pack(side="left", padx=(14, 5))
+            ttk.Label(legend, text=text, style="Faint.TLabel",
+                      font=self.fonts["small"]).pack(side="left")
 
         self.grid_setup, self.summary_setup = self._build_coverage(panel)
 
@@ -828,6 +838,15 @@ class App(tk.Tk):
             messagebox.showwarning("No search terms",
                                    "Add at least one search term before starting.")
             return
+        # Start is already disabled with nothing selected, so this only fires
+        # if that guard is ever bypassed -- but a run with no places would
+        # finish instantly and look like a crash.
+        if not geo.leaf_count(self.selection):
+            messagebox.showwarning(
+                "No locations",
+                "Press Choose locations and pick at least one country, "
+                "state or city before starting.")
+            return
         settings.save(prefs, SETTINGS_PATH)
         self.prefs = prefs
 
@@ -836,7 +855,7 @@ class App(tk.Tk):
         self.run_state = runstate.initial_state(
             done_pairs, prefs["terms"], geo.leaf_places(self.selection)
         )
-        self.run_state.clubs = len(records)
+        self.run_state.saved = len(records)
         self._rendered_minute = None
 
         scrape.subscribe(self._on_event)
@@ -1019,7 +1038,7 @@ class App(tk.Tk):
             left = runstate.remaining(s, now)
             self.run_counts.configure(
                 text=f"{s.queries_done} of {s.queries_total} searches   ·   "
-                     f"{s.clubs} businesses saved   ·   {runstate.elapsed(s, now)} elapsed"
+                     f"{s.saved} businesses saved   ·   {runstate.elapsed(s, now)} elapsed"
                      + (f"   ·   about {left} left" if left else ""))
             self._paint_coverage(self.grid_running, self.summary_running,
                                  self.coverage_head_running)
@@ -1027,11 +1046,11 @@ class App(tk.Tk):
             self.log_box.delete("1.0", "end")
             self.log_box.insert("1.0", "\n".join(s.log[-7:]))
             self.log_box.configure(state="disabled")
-            self.status_detail.configure(text=f"{s.clubs} businesses")
+            self.status_detail.configure(text=f"{s.saved} businesses")
             self.status_right.configure(text="Safe to close — picks up where it left off")
 
         elif self._visible == "results":
-            self.res_count.configure(text=f"{s.clubs:,}")
+            self.res_count.configure(text=f"{s.saved:,}")
             self.res_summary.configure(
                 text=f"Finished in {runstate.elapsed(s, now)} · "
                      f"{s.queries_done} of {s.queries_total} searches")
@@ -1072,7 +1091,7 @@ class App(tk.Tk):
             self.blocked_detail.configure(
                 text=(f"{', '.join(failed)} failed and will be tried again next run."
                       if failed else ""))
-            self.status_detail.configure(text=f"{s.clubs} businesses saved")
+            self.status_detail.configure(text=f"{s.saved} businesses saved")
             self.status_right.configure(text="Waiting for you")
 
         elif self._visible == "locations":
@@ -1086,7 +1105,7 @@ class App(tk.Tk):
             self._paint_coverage(self.grid_setup, self.summary_setup,
                                  self.coverage_head)
             self.status_detail.configure(
-                text=f"{s.queries_total} searches queued · {s.clubs} businesses cached")
+                text=f"{s.queries_total} searches queued · {s.saved} businesses cached")
 
     def _fill_table(self, records):
         for row in self.table.get_children():

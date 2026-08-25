@@ -70,7 +70,7 @@ def test_a_city_level_place_seeds_the_same_key_its_events_use():
 def test_fold_does_not_mutate_its_argument():
     s = runstate.initial_state(set(), TERMS, PLACES)
     runstate.fold(s, "listing_saved", {"name": "X", "city": "Y", "state": "UT"})
-    assert s.clubs == 0
+    assert s.saved == 0
 
 
 def test_run_start_begins_the_clock():
@@ -135,7 +135,7 @@ def test_saved_listings_count_up():
     s = runstate.initial_state(set(), TERMS, PLACES)
     for name in ("Padel Den", "SLC Padel Club"):
         s = runstate.fold(s, "listing_saved", {"name": name, "city": "Orem", "state": "UT"})
-    assert s.clubs == 2
+    assert s.saved == 2
     assert "Padel Den" in s.log[-2]
 
 

@@ -1,4 +1,4 @@
-"""Google Maps club scraper -> Google Sheets.
+"""Google Maps lead scraper -> Google Sheets.
 
 Run `python scrape.py --help` for usage.
 """

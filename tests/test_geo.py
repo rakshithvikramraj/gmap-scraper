@@ -1,6 +1,7 @@
 import pytest
 
 import geo
+import scrape
 
 
 # --- Place ----------------------------------------------------------------
@@ -205,3 +206,15 @@ def test_search_respects_its_limit():
 
 def test_search_returns_nothing_for_a_place_that_does_not_exist():
     assert geo.search_places("Zzzyxxqq") == []
+
+
+def test_every_us_state_abbreviates_to_a_unique_two_letter_code():
+    """Replaces widgets.STATE_ABBR, which only ever knew the 50 states."""
+    codes = {geo.abbreviate("United States", s) for s in scrape.ALL_50}
+    assert len(codes) == 50, "the 50 states must not collide in a coverage cell"
+    assert geo.abbreviate("United States", "Texas") == "TX"
+
+
+def test_a_region_with_a_numeric_code_falls_back_to_its_name():
+    """GeoNames gives Maharashtra "16", which tells an operator nothing."""
+    assert geo.abbreviate("India", "Maharashtra") == "MAH"
