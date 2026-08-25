@@ -3,6 +3,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Unconditional, and outside the install block below: a teammate who already
+# has uv under ~/.local/bin still needs it on PATH for this shell.
+export PATH="$HOME/.local/bin:$PATH"
+
 if ! command -v uv >/dev/null 2>&1; then
   echo "Installing uv..."
   curl -LsSf https://astral.sh/uv/install.sh | sh

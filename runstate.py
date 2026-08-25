@@ -35,18 +35,20 @@ def initial_state(done_pairs, terms, states) -> RunState:
 
     A state counts as done only when every term is cached for it, because one
     outstanding term still means work to do there.
+
+    `queries_done` deliberately starts at 0 and is owned entirely by the event
+    stream: run_stage1 emits query_skipped for every cached pair, so seeding it
+    from the cache too counted those pairs twice and a resumed run finished
+    above 100% with a halved ETA. Nothing reads it before run_start.
     """
     coverage = {}
     for state in states:
         cached = sum(1 for term in terms if (term, state) in done_pairs)
         coverage[state] = "done" if cached == len(terms) and terms else "pending"
-    queries_done = sum(
-        1 for term in terms for state in states if (term, state) in done_pairs
-    )
     return RunState(
         coverage=coverage,
         queries_total=len(terms) * len(states),
-        queries_done=queries_done,
+        queries_done=0,
     )
 
 

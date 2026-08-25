@@ -862,8 +862,11 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
                         f"  {reason}; leaving {term} / {state} unmarked "
                         "so a re-run retries it"
                     )
+                # `complete` was computed before the stop flag broke the
+                # listing loop, so a stopped state would paint green "done" in
+                # the grid while the cache correctly left it unmarked.
                 emit("query_done", term=term, state=state, scraped=scraped,
-                     failed=failed, complete=complete)
+                     failed=failed, complete=complete and not stop_requested())
                 _pause(PAUSE_QUERY)
         browser.close()
 

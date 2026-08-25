@@ -22,13 +22,20 @@ def _ensure_tcl_paths() -> None:
     that does not already carry them. Deriving the paths from sys.base_prefix
     keeps this portable: every uv-installed Python lays them out the same way,
     and an environment that already sets them is left alone.
+
+    The version is globbed rather than hardcoded: pinning tcl8.6/tk8.6 would
+    silently no-op on a Tcl 9 build and surface as a TclError at import.
     """
     lib = Path(sys.base_prefix) / "lib"
-    for variable, folder in (("TCL_LIBRARY", "tcl8.6"), ("TK_LIBRARY", "tk8.6")):
-        if not os.environ.get(variable):
-            candidate = lib / folder
-            if candidate.is_dir():
-                os.environ[variable] = str(candidate)
+    for variable, prefix in (("TCL_LIBRARY", "tcl"), ("TK_LIBRARY", "tk")):
+        if os.environ.get(variable):
+            continue
+        exact = lib / f"{prefix}8.6"
+        candidates = [exact] if exact.is_dir() else sorted(
+            p for p in lib.glob(f"{prefix}[0-9]*") if p.is_dir()
+        )
+        if candidates:
+            os.environ[variable] = str(candidates[-1])
 
 
 _ensure_tcl_paths()
@@ -45,6 +52,12 @@ import settings
 from widgets import PALETTE, CoverageGrid, RoundedButton
 
 SETTINGS_PATH = Path("data") / "settings.json"
+
+# The visible panel is the single source of truth for what render() paints; the
+# pump uses this to follow a status change the user did not ask for (a mid-run
+# block), and nothing else moves the panel behind their back.
+PANEL_FOR_STATUS = {"idle": "setup", "running": "running",
+                    "finished": "results", "blocked": "blocked"}
 
 UI_FACES = ("Segoe UI", "Helvetica Neue", "DejaVu Sans")
 MONO_FACES = ("Consolas", "Menlo", "DejaVu Sans Mono", "Courier New")
@@ -120,14 +133,19 @@ class App(tk.Tk):
 
         self.prefs = settings.load(SETTINGS_PATH)
         records, done_pairs = scrape.read_cache()
-        self.state = runstate.initial_state(
+        # Named run_state, not state: tk.Tk already has a public state()
+        # method, and shadowing it would quietly remove the ability to call
+        # it (e.g. with "zoomed") or to query the window state at all.
+        self.run_state = runstate.initial_state(
             done_pairs, self.prefs["terms"], self.prefs["states"]
         )
-        self.state.clubs = len(records)
+        self.run_state.clubs = len(records)
 
         self.events = queue.Queue()
         self.worker = None
         self.stop_flag = threading.Event()
+        self._visible = "setup"
+        self._rendered_minute = None
 
         self._build_toolbar()
         self._body = ttk.Frame(self)
@@ -188,6 +206,16 @@ class App(tk.Tk):
         panel.pack(fill="both", expand=True)
         self._visible = name
 
+    def _go(self, name: str) -> None:
+        """Hand navigation: switch panel and paint it once.
+
+        render() paints whatever panel is visible, and the pump has stopped by
+        the time these buttons exist, so the switch has to repaint itself or
+        the user lands on the previous frame's contents.
+        """
+        self.show(name)
+        self.render()
+
     # -- setup panel -------------------------------------------------------
     def _build_setup(self):
         panel = ttk.Frame(self._body, padding=(16, 14))
@@ -237,8 +265,11 @@ class App(tk.Tk):
         self.var_limited = tk.BooleanVar(value=self.prefs.get("limit") is not None)
         ttk.Checkbutton(limit_row, text="Stop after", variable=self.var_limited,
                         command=self._sync_limit).pack(side="left")
+        # readonly, never "normal": a freely typeable Spinbox lets an empty or
+        # padded value reach int() and raise ValueError out of on_start, where
+        # the only symptom is a Start button that looks dead.
         self.limit_spin = ttk.Spinbox(limit_row, from_=1, to=120, width=4,
-                                      font=self.fonts["mono"])
+                                      font=self.fonts["mono"], state="readonly")
         self.limit_spin.set(self.prefs.get("limit") or 3)
         self.limit_spin.pack(side="left", padx=6)
         ttk.Label(limit_row, text="clubs per state").pack(side="left")
@@ -259,10 +290,11 @@ class App(tk.Tk):
 
         self.grid_setup = CoverageGrid(panel, scrape.ALL_50, font=self.fonts["cell"])
         self.grid_setup.pack(fill="x")
-        self.grid_setup.update_coverage(self.state.coverage)
+        self.grid_setup.update_coverage(self.run_state.coverage)
 
     def _sync_limit(self) -> None:
-        self.limit_spin.configure(state="normal" if self.var_limited.get() else "disabled")
+        self.limit_spin.configure(
+            state="readonly" if self.var_limited.get() else "disabled")
 
     # -- running panel -----------------------------------------------------
     def _build_running(self):
@@ -345,7 +377,7 @@ class App(tk.Tk):
         actions.pack(fill="x", pady=(12, 0))
         RoundedButton(actions, "Open results file", self.on_open_folder,
                       kind="primary", font=self.fonts["ui_bold"], height=30).pack(side="left")
-        RoundedButton(actions, "Start a new run", lambda: self.show("setup"),
+        RoundedButton(actions, "Start a new run", lambda: self._go("setup"),
                       font=self.fonts["ui"], height=30).pack(side="left", padx=(10, 0))
 
     # -- interrupted panel -------------------------------------------------
@@ -375,7 +407,7 @@ class App(tk.Tk):
                       font=self.fonts["ui_bold"], height=30,
                       bg=PALETTE["field"]).pack(side="left")
         RoundedButton(row, "Finish here and keep what I have",
-                      lambda: self.show("results"), font=self.fonts["ui"],
+                      lambda: self._go("results"), font=self.fonts["ui"],
                       height=30, bg=PALETTE["field"]).pack(side="left", padx=(9, 0))
 
         ttk.Label(panel, text="WHERE IT GOT TO", style="Faint.TLabel",
@@ -425,8 +457,9 @@ class App(tk.Tk):
 
         scrape.clear_stop()
         records, done_pairs = scrape.read_cache()
-        self.state = runstate.initial_state(done_pairs, prefs["terms"], prefs["states"])
-        self.state.clubs = len(records)
+        self.run_state = runstate.initial_state(done_pairs, prefs["terms"], prefs["states"])
+        self.run_state.clubs = len(records)
+        self._rendered_minute = None
 
         scrape.subscribe(self._on_event)
         self.worker = threading.Thread(target=self._run_worker, args=(prefs,),
@@ -471,14 +504,18 @@ class App(tk.Tk):
                 headless=not prefs["headed"],
                 force=prefs["force"],
             )
-            if prefs["enrich"] and not scrape.stop_requested():
-                scrape.run_stage2(force=prefs["force"])
-            records, _ = scrape.read_cache()
-            scrape.write_csv(records)
+            # A block does not set the stop flag - run_stage1's circuit breaker
+            # emits "blocked" and returns normally - so enrichment has to be
+            # gated on saw_blocked too, or a blocked run spends hours fetching
+            # club websites behind a panel that says it is paused.
             if saw_blocked["hit"]:
                 reason = "blocked"
-            elif scrape.stop_requested():
-                reason = "stopped"
+            else:
+                if prefs["enrich"] and not scrape.stop_requested():
+                    scrape.run_stage2(force=prefs["force"])
+                reason = "stopped" if scrape.stop_requested() else "done"
+            records, _ = scrape.read_cache()
+            scrape.write_csv(records)
         except Exception as exc:
             reason = "crashed"
             self.events.put(("query_failed", {
@@ -494,28 +531,56 @@ class App(tk.Tk):
         """Drain the queue, fold each event, repaint once. Main thread only."""
         now = time.monotonic()
         finished = False
-        for _ in range(500):
-            try:
-                kind, data = self.events.get_nowait()
-            except queue.Empty:
-                break
-            self.state = runstate.fold(self.state, kind, data, now=now)
-            if kind == "run_finished":
-                finished = True
+        try:
+            before = self.run_state.status
+            drained = 0
+            for _ in range(500):
+                try:
+                    kind, data = self.events.get_nowait()
+                except queue.Empty:
+                    break
+                drained += 1
+                self.run_state = runstate.fold(self.run_state, kind, data, now=now)
+                if kind == "run_finished":
+                    finished = True
 
-        self.render(now)
+            # Only on a *change*: the panel is the source of truth, so following
+            # the status here catches a mid-run block, while leaving the two
+            # hand-navigation buttons free to show a panel the next tick will
+            # not yank back.
+            if self.run_state.status != before:
+                self.show(PANEL_FOR_STATUS[self.run_state.status])
+
+            # Nothing on screen has finer resolution than a minute, so a tick
+            # that drained nothing inside the same minute would repaint 100
+            # canvas items and wipe the activity log's selection for nothing.
+            minute = self._elapsed_minute(now)
+            if drained or minute != self._rendered_minute:
+                self._rendered_minute = minute
+                self.render(now)
+        except Exception as exc:
+            # One exception in fold() or render() used to kill the after() chain
+            # for good: the worker scraped on for hours behind a window frozen on
+            # its last frame, _finish() never ran, the button stayed on "Stop".
+            self.run_state.log.append(f"Display problem: {type(exc).__name__}: {exc}")
 
         if finished:
             self._finish()
         elif (self.worker and self.worker.is_alive()) or not self.events.empty():
             self.after(100, self._pump)
 
+    def _elapsed_minute(self, now: float) -> int | None:
+        """Which minute of the run `now` falls in, or None before it starts."""
+        if self.run_state.started_at is None:
+            return None
+        return int((now - self.run_state.started_at) // 60)
+
     def _finish(self):
         scrape.unsubscribe(self._on_event)
         self.worker = None
         self.start_btn.set_text("Start scrape")
         self.start_btn.set_enabled(True)
-        self.show("results" if self.state.status == "finished" else "blocked")
+        self.show(PANEL_FOR_STATUS[self.run_state.status])
         self.render()
 
     def on_close(self):
@@ -528,22 +593,29 @@ class App(tk.Tk):
             ):
                 return
             scrape.request_stop()
+            # write_csv() rewrites the whole file, so closing inside that window
+            # truncates results.csv. Wait for the current listing to land.
+            self.worker.join(timeout=15)
         self.destroy()
 
     def current_prefs(self) -> dict:
+        try:
+            limit = int(self.limit_spin.get()) if self.var_limited.get() else None
+        except (TypeError, ValueError):
+            limit = None
         return {
             "terms": list(self.terms_list.get(0, "end")),
             "states": list(scrape.ALL_50),
             "enrich": self.var_enrich.get(),
             "headed": self.var_headed.get(),
             "force": self.var_force.get(),
-            "limit": int(self.limit_spin.get()) if self.var_limited.get() else None,
+            "limit": limit,
         }
 
     def render(self, now: float | None = None) -> None:
-        """Paint the visible panel from self.state. Main thread only."""
+        """Paint the visible panel from self.run_state. Main thread only."""
         now = time.monotonic() if now is None else now
-        s = self.state
+        s = self.run_state
 
         dot = {"idle": PALETTE["partial"], "running": PALETTE["accent"],
                "finished": PALETTE["done"], "blocked": PALETTE["partial"]}[s.status]
@@ -553,7 +625,12 @@ class App(tk.Tk):
             text={"idle": "Ready", "running": "Running",
                   "finished": "Finished", "blocked": "Paused"}[s.status])
 
-        if s.status == "running":
+        # Dispatch on the visible panel, not the status: they can legitimately
+        # disagree (a mid-run block before the pump switches, or either hand
+        # navigation button), and painting the panel nobody is looking at
+        # freezes the one they are. The dot above stays status-derived - it is
+        # genuinely about the run, not about what is on screen.
+        if self._visible == "running":
             self.run_current.configure(text=s.current or "Working…")
             self.run_stage.configure(text=s.stage)
             done_pct = (100 * s.queries_done / s.queries_total) if s.queries_total else 0
@@ -571,23 +648,34 @@ class App(tk.Tk):
             self.status_detail.configure(text=f"{s.clubs} clubs")
             self.status_right.configure(text="Safe to close — picks up where it left off")
 
-        elif s.status == "finished":
+        elif self._visible == "results":
             self.res_count.configure(text=f"{s.clubs:,}")
             self.res_summary.configure(
                 text=f"Finished in {runstate.elapsed(s, now)} · "
                      f"{s.queries_done} of {s.queries_total} searches")
+            # "partial" is not evidence of the 120-result cap: a per-state
+            # limit makes every query incomplete, which used to announce that
+            # all 50 states hit a cap none of them reached. at_cap is the real
+            # signal and was already folded.
             partial = [st for st, v in s.coverage.items() if v == "partial"]
-            self.res_warning.configure(
-                text=(f"{len(partial)} states are only partly covered "
-                      f"({', '.join(partial[:4])}) — they hit Google's 120-result limit."
-                      if partial else ""))
+            if s.at_cap:
+                warning = (f"{len(s.at_cap)} states hit Google's 120-result limit "
+                           f"({', '.join(s.at_cap[:4])}) — searching those by city "
+                           "would find more.")
+            elif partial:
+                warning = (f"{len(partial)} states are only partly covered "
+                           f"({', '.join(partial[:4])}) — re-run without a per-state "
+                           "limit to finish them.")
+            else:
+                warning = ""
+            self.res_warning.configure(text=warning)
             records, _ = scrape.read_cache()
             self._fill_table(records)
             self._fill_health(records)
             self.status_detail.configure(text=str(scrape.CSV_PATH))
             self.status_right.configure(text="")
 
-        elif s.status == "blocked":
+        elif self._visible == "blocked":
             crashed = s.finish_reason == "crashed"
             self.blocked_title.configure(
                 text="Something went wrong" if crashed else "Google has stopped answering")

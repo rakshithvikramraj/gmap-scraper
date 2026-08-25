@@ -19,7 +19,9 @@ def test_initial_state_marks_a_state_done_only_when_every_term_is_cached():
     s = runstate.initial_state(done, TERMS, STATES)
     assert s.coverage["Texas"] == "done"
     assert s.coverage["Utah"] == "pending", "one term still outstanding"
-    assert s.queries_done == 3
+    # The event stream owns queries_done: run_stage1 emits query_skipped for
+    # every cached pair, so seeding it here as well double-counted the resume.
+    assert s.queries_done == 0
 
 
 def test_fold_does_not_mutate_its_argument():
@@ -207,3 +209,20 @@ def test_fold_does_not_mutate_the_containers_it_updates():
     assert s.failures == [], "failures must be copied, not appended to"
     assert s.at_cap == [], "at_cap must be copied, not appended to"
     assert s.log == log_before, "log must be copied, not appended to"
+
+
+def test_a_resumed_run_ends_at_exactly_one_hundred_percent():
+    terms, states = ["a", "b"], [f"S{i}" for i in range(10)]
+    cached = {("a", s) for s in states[:4]}
+    s = runstate.initial_state(cached, terms, states)
+    s = runstate.fold(s, "run_start",
+                      {"terms": terms, "states": states, "total_queries": 20}, now=0)
+    for term in terms:
+        for state in states:
+            if (term, state) in cached:
+                s = runstate.fold(s, "query_skipped", {"term": term, "state": state})
+            else:
+                s = runstate.fold(s, "query_done", {"term": term, "state": state,
+                                                    "scraped": 1, "failed": 0,
+                                                    "complete": True})
+    assert s.queries_done == s.queries_total == 20

@@ -11,7 +11,7 @@ You need nothing installed beforehand — not even Python.
 **macOS**
 
 ```bash
-git clone git@github.com:rakshithvikramraj/gmap-scraper.git
+git clone https://github.com/rakshithvikramraj/gmap-scraper.git
 cd gmap-scraper
 ./setup.command      # once, takes a few minutes
 ./run.command        # opens the app
@@ -19,25 +19,44 @@ cd gmap-scraper
 
 **Windows**
 
+Install Git first from <https://git-scm.com/download/win> — Windows does not
+ship with it. Then, in Command Prompt or PowerShell:
+
 ```
 git clone https://github.com/rakshithvikramraj/gmap-scraper.git
 cd gmap-scraper
-setup.bat
-run.bat
+.\setup.bat
+.\run.bat
 ```
+
+The `.\` prefix is required in PowerShell and harmless in Command Prompt, so
+the block above works pasted into either.
 
 Setup downloads roughly 180MB once: Python, the libraries, and the browser the
 scraper drives. After that both scripts start instantly.
 
-To get later fixes, run `git pull` and then `./setup.command` (or `setup.bat`)
+To get later fixes, run `git pull` and then `./setup.command` (or `.\setup.bat`)
 again.
+
+**If you were sent a zip instead of a repo link**
+
+macOS quarantines everything unpacked from a downloaded archive, so
+`./setup.command` refuses to run. Clear it once, from inside the project
+folder:
+
+```bash
+xattr -dr com.apple.quarantine .
+```
 
 ### Using it
 
-Add your search terms, tick the states you want, press **Start scrape**. A full
-50-state run takes a few hours, so it paces itself and saves as it goes — you
-can close the window and press Start again later to carry on from where it
-stopped.
+Add your search terms and press **Start scrape**. There is no state picker:
+every run covers all 50 states. A full run takes a few hours, so it paces
+itself and saves as it goes — you can close the window and press Start again
+later to carry on from where it stopped.
+
+For a quick trial run, tick **Stop after N clubs per state** — that caps each
+state at a handful of listings and finishes in minutes.
 
 Results are written to `data/results.csv`, which opens in Excel or imports
 straight into Google Sheets.
@@ -48,7 +67,10 @@ The panel at the end of a run shows how complete each column is. If a column
 that is normally full drops to near zero, Google has changed its page layout
 and the app needs updating — tell whoever maintains this.
 
-## Install
+## If your company blocks uv
+
+The setup scripts above are the supported path. Only if `uv`'s installer is
+blocked on your network, set the environment up by hand instead:
 
 ```bash
 uv venv
