@@ -130,6 +130,19 @@ def apply_theme(root) -> None:
               foreground=[("selected", PALETTE["ink"])])
 
 
+def _us_places(states):
+    """`geo.Place`s for a list of plain US state names from `prefs["states"]`.
+
+    The GUI still only lets someone pick US states, so every place it
+    searches is a US region; a later plan gives it a real country/state/city
+    selection and this seam goes away. Shared by `_run_worker` (what actually
+    gets searched) and the `runstate.initial_state` seeding calls (what the
+    coverage grid checks against the resume cache), so the two can never
+    disagree about which place a state name means.
+    """
+    return [geo.Place(country="United States", region=state) for state in states]
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -147,7 +160,7 @@ class App(tk.Tk):
         # method, and shadowing it would quietly remove the ability to call
         # it (e.g. with "zoomed") or to query the window state at all.
         self.run_state = runstate.initial_state(
-            done_pairs, self.prefs["terms"], self.prefs["states"]
+            done_pairs, self.prefs["terms"], _us_places(self.prefs["states"])
         )
         self.run_state.clubs = len(records)
 
@@ -467,7 +480,9 @@ class App(tk.Tk):
 
         scrape.clear_stop()
         records, done_pairs = scrape.read_cache()
-        self.run_state = runstate.initial_state(done_pairs, prefs["terms"], prefs["states"])
+        self.run_state = runstate.initial_state(
+            done_pairs, prefs["terms"], _us_places(prefs["states"])
+        )
         self.run_state.clubs = len(records)
         self._rendered_minute = None
 
@@ -508,11 +523,7 @@ class App(tk.Tk):
         scrape.subscribe(watch)
         reason = "done"
         try:
-            # The GUI still only lets someone pick US states, so every place
-            # it searches is a US region; a later plan gives it a real
-            # country/state/city selection and this seam goes away.
-            places = [geo.Place(country="United States", region=state)
-                      for state in prefs["states"]]
+            places = _us_places(prefs["states"])
             scrape.run_stage1(
                 prefs["terms"], places,
                 limit=prefs.get("limit"),

@@ -30,11 +30,19 @@ class RunState:
     finish_reason: str = ""
 
 
-def initial_state(done_pairs, terms, states) -> RunState:
+def initial_state(done_pairs, terms, places) -> RunState:
     """Seed from the resume cache, before any event arrives.
 
-    A state counts as done only when every term is cached for it, because one
+    A place counts as done only when every term is cached for it, because one
     outstanding term still means work to do there.
+
+    `places` holds whatever the caller compares `done_pairs` entries against -
+    in practice `geo.Place` values. This module stays free of any geography
+    import: it only calls `.label()` (the coverage cell's key, matching the
+    plain name `run_stage1` puts in its `state=` events) and `.key()` (the
+    country/region/city triple that, prefixed with the term, is a
+    `done_pairs` entry) on each one, so it never has to know what a country
+    or a region is.
 
     `queries_done` deliberately starts at 0 and is owned entirely by the event
     stream: run_stage1 emits query_skipped for every cached pair, so seeding it
@@ -42,12 +50,12 @@ def initial_state(done_pairs, terms, states) -> RunState:
     above 100% with a halved ETA. Nothing reads it before run_start.
     """
     coverage = {}
-    for state in states:
-        cached = sum(1 for term in terms if (term, state) in done_pairs)
-        coverage[state] = "done" if cached == len(terms) and terms else "pending"
+    for place in places:
+        cached = sum(1 for term in terms if (term, *place.key()) in done_pairs)
+        coverage[place.label()] = "done" if cached == len(terms) and terms else "pending"
     return RunState(
         coverage=coverage,
-        queries_total=len(terms) * len(states),
+        queries_total=len(terms) * len(places),
         queries_done=0,
     )
 

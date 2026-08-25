@@ -1,12 +1,15 @@
+import geo
 import runstate
+import scrape
 
 
 TERMS = ["padel club", "padel court"]
 STATES = ["Texas", "Utah"]
+PLACES = [geo.Place(country="United States", region=s) for s in STATES]
 
 
 def test_initial_state_is_idle_with_everything_pending():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     assert s.status == "idle"
     assert s.coverage == {"Texas": "pending", "Utah": "pending"}
     assert s.queries_total == 4
@@ -14,9 +17,10 @@ def test_initial_state_is_idle_with_everything_pending():
 
 
 def test_initial_state_marks_a_state_done_only_when_every_term_is_cached():
-    done = {("padel club", "Texas"), ("padel court", "Texas"),
-            ("padel club", "Utah")}
-    s = runstate.initial_state(done, TERMS, STATES)
+    done = {("padel club", "United States", "Texas", ""),
+            ("padel court", "United States", "Texas", ""),
+            ("padel club", "United States", "Utah", "")}
+    s = runstate.initial_state(done, TERMS, PLACES)
     assert s.coverage["Texas"] == "done"
     assert s.coverage["Utah"] == "pending", "one term still outstanding"
     # The event stream owns queries_done: run_stage1 emits query_skipped for
@@ -24,14 +28,30 @@ def test_initial_state_marks_a_state_done_only_when_every_term_is_cached():
     assert s.queries_done == 0
 
 
+def test_a_cached_state_paints_done_not_pending(tmp_path):
+    """Regression: a bare state name can never match a four-part done marker.
+
+    initial_state used to compare (term, "Texas") against done_pairs shaped
+    (term, country, region, city); that comparison could never succeed, so a
+    teammate reopening the app after a partial run saw every state grey
+    ("pending") even though the cache said it was done.
+    """
+    cache = tmp_path / "cache.jsonl"
+    place = geo.Place(country="United States", region="Texas")
+    scrape.mark_pair_done("gym", place, cache)
+    _, done = scrape.read_cache(cache)
+    s = runstate.initial_state(done, ["gym"], [place])
+    assert s.coverage == {"Texas": "done"}
+
+
 def test_fold_does_not_mutate_its_argument():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     runstate.fold(s, "listing_saved", {"name": "X", "city": "Y", "state": "UT"})
     assert s.clubs == 0
 
 
 def test_run_start_begins_the_clock():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "run_start",
                       {"terms": TERMS, "states": STATES, "total_queries": 4},
                       now=100.0)
@@ -41,7 +61,7 @@ def test_run_start_begins_the_clock():
 
 
 def test_a_clean_query_marks_the_state_done():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "query_start", {"term": "padel club", "state": "Texas"})
     assert s.coverage["Texas"] == "active"
     s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
@@ -51,21 +71,21 @@ def test_a_clean_query_marks_the_state_done():
 
 
 def test_an_incomplete_query_is_partial_not_done():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
                                         "scraped": 3, "failed": 0, "complete": False})
     assert s.coverage["Texas"] == "partial"
 
 
 def test_a_query_with_failed_listings_is_failed():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
                                         "scraped": 5, "failed": 2, "complete": True})
     assert s.coverage["Texas"] == "failed"
 
 
 def test_a_worse_outcome_wins_across_terms():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
                                         "scraped": 5, "failed": 0, "complete": True})
     s = runstate.fold(s, "query_done", {"term": "padel court", "state": "Texas",
@@ -74,7 +94,7 @@ def test_a_worse_outcome_wins_across_terms():
 
 
 def test_a_better_outcome_does_not_erase_a_failure():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "query_failed", {"term": "padel club", "state": "Utah",
                                           "error": "TimeoutError: gone"})
     s = runstate.fold(s, "query_done", {"term": "padel court", "state": "Utah",
@@ -83,7 +103,7 @@ def test_a_better_outcome_does_not_erase_a_failure():
 
 
 def test_saved_listings_count_up():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     for name in ("Padel Den", "SLC Padel Club"):
         s = runstate.fold(s, "listing_saved", {"name": name, "city": "Orem", "state": "UT"})
     assert s.clubs == 2
@@ -91,14 +111,14 @@ def test_saved_listings_count_up():
 
 
 def test_hitting_the_result_cap_is_recorded():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "listings_found", {"term": "padel club", "state": "Texas",
                                             "count": 120, "at_cap": True})
     assert s.at_cap == ["Texas"]
 
 
 def test_a_failed_query_is_recorded_with_its_reason():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "query_failed", {"term": "padel club", "state": "Idaho",
                                           "error": "TimeoutError: no feed"})
     assert s.coverage.get("Idaho") == "failed"
@@ -107,20 +127,20 @@ def test_a_failed_query_is_recorded_with_its_reason():
 
 
 def test_being_blocked_switches_status():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "blocked", {"term": "padel club", "state": "Nevada",
                                      "consecutive": 3})
     assert s.status == "blocked"
 
 
 def test_a_skipped_cached_query_advances_progress():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "query_skipped", {"term": "padel club", "state": "Texas"})
     assert s.queries_done == 1
 
 
 def test_stage_two_tracks_its_own_progress():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "stage2_start", {"total": 40})
     assert s.enrich_total == 40
     s = runstate.fold(s, "enriched", {"index": 7, "total": 40,
@@ -129,7 +149,7 @@ def test_stage_two_tracks_its_own_progress():
 
 
 def test_finishing_maps_reasons_to_a_status():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     assert runstate.fold(s, "run_finished", {"reason": "done"}).status == "finished"
     assert runstate.fold(s, "run_finished", {"reason": "stopped"}).status == "finished"
     assert runstate.fold(s, "run_finished", {"reason": "blocked"}).status == "blocked"
@@ -137,7 +157,7 @@ def test_finishing_maps_reasons_to_a_status():
 
 
 def test_the_log_is_capped():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     for i in range(runstate.MAX_LOG + 50):
         s = runstate.fold(s, "listing_saved", {"name": f"Club {i}", "city": "X", "state": "UT"})
     assert len(s.log) == runstate.MAX_LOG
@@ -145,7 +165,7 @@ def test_the_log_is_capped():
 
 
 def test_an_unknown_event_is_ignored():
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     assert runstate.fold(s, "not_a_real_event", {"x": 1}) == s
 
 
@@ -197,7 +217,7 @@ def test_fold_does_not_mutate_the_containers_it_updates():
     This one exercises all four mutable containers, so a fold that forgot to
     copy one would fail here instead of silently corrupting the caller's state.
     """
-    s = runstate.initial_state(set(), TERMS, STATES)
+    s = runstate.initial_state(set(), TERMS, PLACES)
     coverage_before, log_before = dict(s.coverage), list(s.log)
 
     runstate.fold(s, "query_failed", {"term": "padel club", "state": "Texas",
@@ -213,13 +233,15 @@ def test_fold_does_not_mutate_the_containers_it_updates():
 
 def test_a_resumed_run_ends_at_exactly_one_hundred_percent():
     terms, states = ["a", "b"], [f"S{i}" for i in range(10)]
-    cached = {("a", s) for s in states[:4]}
-    s = runstate.initial_state(cached, terms, states)
+    places = [geo.Place(country="United States", region=s) for s in states]
+    done_states = set(states[:4])
+    cached = {("a", "United States", s, "") for s in done_states}
+    s = runstate.initial_state(cached, terms, places)
     s = runstate.fold(s, "run_start",
                       {"terms": terms, "states": states, "total_queries": 20}, now=0)
     for term in terms:
         for state in states:
-            if (term, state) in cached:
+            if term == "a" and state in done_states:
                 s = runstate.fold(s, "query_skipped", {"term": term, "state": state})
             else:
                 s = runstate.fold(s, "query_done", {"term": term, "state": state,
