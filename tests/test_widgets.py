@@ -70,3 +70,51 @@ def test_status_colour_covers_every_state_the_reducer_can_produce():
 def test_widgets_paints_from_the_shared_theme_palette():
     import theme
     assert widgets.PALETTE is theme.PALETTE, "one palette, not a copy that can drift"
+
+
+def test_visible_slice_covers_the_viewport_and_one_row_of_overscan():
+    # 200px tall, 30px rows, scrolled to row 3: rows 3..10 inclusive
+    assert widgets.visible_slice(3, 200, 30, 100) == (3, 11)
+
+
+def test_visible_slice_never_runs_past_the_end():
+    assert widgets.visible_slice(95, 200, 30, 100) == (95, 100)
+
+
+def test_visible_slice_of_an_empty_list_is_empty():
+    assert widgets.visible_slice(0, 200, 30, 0) == (0, 0)
+
+
+def test_clamp_top_refuses_to_scroll_above_the_first_row():
+    assert widgets.clamp_top(-4, 200, 30, 100) == 0
+
+
+def test_clamp_top_stops_with_the_last_row_in_view():
+    # 200px shows 6 whole rows, so the furthest top is 100 - 6 = 94
+    assert widgets.clamp_top(999, 200, 30, 100) == 94
+
+
+def test_clamp_top_is_zero_when_everything_already_fits():
+    assert widgets.clamp_top(5, 900, 30, 10) == 0
+
+
+def test_scroll_fractions_span_the_whole_bar_when_everything_fits():
+    assert widgets.scroll_fractions(0, 900, 30, 10) == (0.0, 1.0)
+
+
+def test_scroll_fractions_track_the_scroll_position():
+    first, last = widgets.scroll_fractions(50, 300, 30, 100)
+    assert first == 0.5 and last == 0.6
+
+
+def test_scroll_fractions_of_an_empty_list_span_the_whole_bar():
+    assert widgets.scroll_fractions(0, 300, 30, 0) == (0.0, 1.0)
+
+
+def test_a_row_carries_a_name_a_note_and_a_tick():
+    row = widgets.Row("Texas", "6/25", True)
+    assert (row.name, row.note, row.checked) == ("Texas", "6/25", True)
+
+
+def test_a_row_needs_only_a_name():
+    assert widgets.Row("Texas") == ("Texas", "", False)
