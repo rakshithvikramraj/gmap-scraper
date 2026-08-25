@@ -1,0 +1,18 @@
+[project]
+name = "club-scraper"
+version = "1.0.0"
+description = "Scrapes club listings from Google Maps into a spreadsheet."
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.48",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "gspread>=6.1",
+    "google-auth>=2.35",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

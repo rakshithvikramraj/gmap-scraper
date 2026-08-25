@@ -4,6 +4,50 @@ Scrapes club listings from Google Maps across US states, enriches them with
 contact details from each club's own website, and upserts the results into a
 Google Sheet.
 
+## For teammates: getting started
+
+You need nothing installed beforehand — not even Python.
+
+**macOS**
+
+```bash
+git clone git@github.com:rakshithvikramraj/gmap-scraper.git
+cd gmap-scraper
+./setup.command      # once, takes a few minutes
+./run.command        # opens the app
+```
+
+**Windows**
+
+```
+git clone https://github.com/rakshithvikramraj/gmap-scraper.git
+cd gmap-scraper
+setup.bat
+run.bat
+```
+
+Setup downloads roughly 180MB once: Python, the libraries, and the browser the
+scraper drives. After that both scripts start instantly.
+
+To get later fixes, run `git pull` and then `./setup.command` (or `setup.bat`)
+again.
+
+### Using it
+
+Add your search terms, tick the states you want, press **Start scrape**. A full
+50-state run takes a few hours, so it paces itself and saves as it goes — you
+can close the window and press Start again later to carry on from where it
+stopped.
+
+Results are written to `data/results.csv`, which opens in Excel or imports
+straight into Google Sheets.
+
+### If something looks wrong
+
+The panel at the end of a run shows how complete each column is. If a column
+that is normally full drops to near zero, Google has changed its page layout
+and the app needs updating — tell whoever maintains this.
+
 ## Install
 
 ```bash
