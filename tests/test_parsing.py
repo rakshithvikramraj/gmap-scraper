@@ -166,3 +166,84 @@ def test_find_owner_contact_keeps_a_three_token_name_whole():
 def test_find_owner_contact_rejects_an_over_long_capitalised_run():
     text = "Owner Riverside Grand Athletic Pavilion Trust (512) 555-0100"
     assert scrape.find_owner_contact(text) == ("", "+15125550100")
+
+
+import pathlib
+
+FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+
+
+def fixture(name):
+    return (FIXTURES / name).read_text()
+
+
+def fake_fetcher():
+    pages = {
+        "https://austinpadel.com": fixture("club_site.html"),
+        "https://austinpadel.com/about": fixture("club_about.html"),
+        "https://austinpadel.com/contact-us": fixture("club_contact.html"),
+    }
+
+    def fetch(url):
+        if url not in pages:
+            raise RuntimeError(f"unexpected fetch: {url}")
+        return pages[url]
+
+    return fetch
+
+
+def test_find_contact_links_same_domain_only():
+    links = scrape.find_contact_links(
+        "https://austinpadel.com", fixture("club_site.html")
+    )
+    assert links == [
+        "https://austinpadel.com/about",
+        "https://austinpadel.com/contact-us",
+    ]
+
+
+def test_extract_socials_picks_first_of_each():
+    html = fixture("club_site.html") + fixture("club_contact.html")
+    assert scrape.extract_socials(html) == {
+        "instagram": "https://instagram.com/austinpadel",
+        "facebook": "https://www.facebook.com/austinpadel",
+        "linkedin": "https://www.linkedin.com/company/austin-padel",
+    }
+
+
+def test_extract_socials_blank_when_absent():
+    assert scrape.extract_socials("<html></html>") == {
+        "instagram": "",
+        "facebook": "",
+        "linkedin": "",
+    }
+
+
+def test_enrich_website_gathers_everything():
+    result = scrape.enrich_website("https://austinpadel.com", fake_fetcher())
+    assert result["emails"] == "bookings@austinpadel.com; info@austinpadel.com"
+    assert result["owner_name"] == "John Smith"
+    assert result["owner_phone"] == "+15125550142"
+    assert result["other_phones"] == "+15125550100"
+    assert result["instagram"] == "https://instagram.com/austinpadel"
+    assert result["enrich_error"] == ""
+
+
+def test_enrich_website_excludes_the_listing_phone():
+    result = scrape.enrich_website(
+        "https://austinpadel.com", fake_fetcher(), listing_phone="+15125550100"
+    )
+    assert result["other_phones"] == ""
+
+
+def test_enrich_website_records_fetch_failure():
+    def boom(url):
+        raise TimeoutError("timed out")
+
+    result = scrape.enrich_website("https://dead.example", boom)
+    assert "TimeoutError" in result["enrich_error"]
+    assert result["emails"] == ""
+
+
+def test_enrich_website_blank_url_returns_empty():
+    assert scrape.enrich_website("", fake_fetcher()) == scrape.empty_enrichment()

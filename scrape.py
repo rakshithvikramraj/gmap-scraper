@@ -5,7 +5,10 @@ Run `python scrape.py --help` for usage.
 
 import re
 from pathlib import Path
-from urllib.parse import quote_plus, unquote
+from urllib.parse import quote_plus, unquote, urljoin, urlparse
+
+import httpx
+from bs4 import BeautifulSoup
 
 # ---------------------------------------------------------------------------
 # CONFIG - the only block you normally need to edit
@@ -264,3 +267,131 @@ def find_owner_contact(text: str) -> tuple[str, str]:
 
         best_gap, best = gap, (name, phone)
     return best
+
+
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+CONTACT_LINK_RE = re.compile(r"contact|about|team|staff|coach", re.I)
+SOCIAL_RES = {
+    "instagram": re.compile(
+        r"https?://(?:www\.)?instagram\.com/[A-Za-z0-9_.\-]+/?"
+    ),
+    "facebook": re.compile(
+        r"https?://(?:www\.)?facebook\.com/[A-Za-z0-9_.\-]+/?"
+    ),
+    "linkedin": re.compile(
+        r"https?://(?:www\.)?linkedin\.com/(?:company|in)/[A-Za-z0-9_.\-]+/?"
+    ),
+}
+SOCIAL_JUNK = ("sharer", "share.php", "/tr?", "/plugins", "/intent/")
+
+ENRICH_KEYS = (
+    "emails", "owner_name", "owner_phone", "other_phones",
+    "instagram", "facebook", "linkedin", "enrich_error",
+)
+
+
+def html_to_text(html: str) -> str:
+    """Visible text of `html`, whitespace-collapsed."""
+    return BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+
+
+def find_contact_links(base_url: str, html: str, limit: int = 3) -> list[str]:
+    """Up to `limit` same-domain contact-ish URLs linked from `html`."""
+    soup = BeautifulSoup(html, "html.parser")
+    base_host = urlparse(base_url).netloc.lower().removeprefix("www.")
+    found: list[str] = []
+    for anchor in soup.find_all("a", href=True):
+        label = f"{anchor['href']} {anchor.get_text(' ', strip=True)}"
+        if not CONTACT_LINK_RE.search(label):
+            continue
+        full = urljoin(base_url, anchor["href"]).split("#")[0]
+        parsed = urlparse(full)
+        if parsed.scheme not in ("http", "https"):
+            continue
+        if parsed.netloc.lower().removeprefix("www.") != base_host:
+            continue
+        if full.rstrip("/") == base_url.rstrip("/"):
+            continue
+        if full not in found:
+            found.append(full)
+        if len(found) >= limit:
+            break
+    return found
+
+
+def extract_socials(html: str) -> dict[str, str]:
+    """First non-junk instagram, facebook and linkedin URL in `html`."""
+    result = {}
+    for key, pattern in SOCIAL_RES.items():
+        result[key] = ""
+        for match in pattern.finditer(html):
+            url = match.group(0)
+            if any(junk in url for junk in SOCIAL_JUNK):
+                continue
+            result[key] = url
+            break
+    return result
+
+
+def empty_enrichment() -> dict[str, str]:
+    """All enrichment fields, blank."""
+    return {key: "" for key in ENRICH_KEYS}
+
+
+def make_fetcher(timeout: float = 15.0):
+    """A fetch(url) -> html callable backed by a pooled httpx client."""
+    client = httpx.Client(
+        follow_redirects=True,
+        timeout=timeout,
+        headers={"User-Agent": USER_AGENT},
+    )
+
+    def fetch(url: str) -> str:
+        response = client.get(url)
+        response.raise_for_status()
+        return response.text
+
+    return fetch
+
+
+def enrich_website(url: str, fetch_fn, listing_phone: str = "") -> dict[str, str]:
+    """Contact details scraped from a club's own website.
+
+    Fetches the homepage plus up to three contact-ish pages, then extracts
+    emails, phones, an owner name/phone pair, and social links. Never raises:
+    fetch failures land in the `enrich_error` field.
+    """
+    result = empty_enrichment()
+    if not url:
+        return result
+
+    try:
+        homepage = fetch_fn(url)
+    except Exception as exc:
+        result["enrich_error"] = f"{type(exc).__name__}: {exc}"[:200]
+        return result
+
+    pages = [homepage]
+    for link in find_contact_links(url, homepage):
+        try:
+            pages.append(fetch_fn(link))
+        except Exception:
+            continue
+
+    html = "\n".join(pages)
+    text = html_to_text(html)
+
+    result["emails"] = "; ".join(extract_emails(html))
+    owner_name, owner_phone = find_owner_contact(text)
+    result["owner_name"] = owner_name
+    result["owner_phone"] = owner_phone
+    result["other_phones"] = "; ".join(
+        phone for phone in extract_phones(text)
+        if phone not in (owner_phone, listing_phone)
+    )
+    result.update(extract_socials(html))
+    return result
