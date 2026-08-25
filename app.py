@@ -638,15 +638,21 @@ class App(tk.Tk):
     def _paint_search(self) -> None:
         """Replace the three panes with one flat list of matches.
 
-        Rows are keyed by `Place.label()`, so `_hits` can turn the name the
-        widget hands back into the Place that produced it. A PickList row
+        Rows are keyed by `Place.query_text()`, so `_hits` can turn the name
+        the widget hands back into the Place that produced it. A PickList row
         knows only its own name -- resolving it here keeps the widget free of
         any idea what a place is.
+
+        `query_text()` and not `label()`, because labels collide: the country
+        Georgia and the US state Georgia both label as "Georgia", so a
+        label-keyed dict kept one of them and clicking either row toggled the
+        wrong place. The full path is unique by construction, and in a flat
+        result list it is also the more useful thing to read.
         """
         hits = geo.search_places(self._search)
-        self._hits = {place.label(): place for place in hits}
+        self._hits = {place.query_text(): place for place in hits}
         self.pane_country.set_rows([
-            widgets.Row(place.label(), place.parts()[0], self._is_on(place))
+            widgets.Row(place.query_text(), "", self._is_on(place))
             for place in hits])
         self.pane_region.set_rows([])
         self.pane_city.set_rows([])

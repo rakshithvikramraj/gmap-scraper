@@ -218,3 +218,19 @@ def test_every_us_state_abbreviates_to_a_unique_two_letter_code():
 def test_a_region_with_a_numeric_code_falls_back_to_its_name():
     """GeoNames gives Maharashtra "16", which tells an operator nothing."""
     assert geo.abbreviate("India", "Maharashtra") == "MAH"
+
+
+def test_search_results_are_uniquely_identified_by_their_full_path():
+    """The selector keys its rows on query_text, so collisions pick the wrong place.
+
+    Place.label() is not safe here: the country Georgia and the US state
+    Georgia both label as "Georgia".
+    """
+    for query in ("georgia", "san", "santa", "victoria"):
+        paths = [p.query_text() for p in geo.search_places(query)]
+        assert len(paths) == len(set(paths)), f"{query!r} has colliding rows"
+
+
+def test_the_country_and_the_state_called_georgia_are_both_reachable():
+    paths = {p.query_text() for p in geo.search_places("georgia")}
+    assert "Georgia" in paths and "Georgia, United States" in paths
