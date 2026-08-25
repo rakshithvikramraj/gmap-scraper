@@ -57,7 +57,13 @@ COLUMNS = [
     "phone", "website", "rating", "reviews", "latitude", "longitude",
     "maps_url", "emails", "owner_name", "owner_phone", "other_phones",
     "instagram", "facebook", "linkedin", "search_term", "search_state",
-    "scraped_at",
+    "scraped_at", "enrich_error",
+]
+
+STAGE1_COLUMNS = [
+    "place_key", "name", "category", "address", "city", "state", "zip",
+    "phone", "website", "rating", "reviews", "latitude", "longitude",
+    "maps_url", "search_term", "search_state", "scraped_at",
 ]
 
 DATA_DIR = Path("data")
@@ -146,7 +152,7 @@ def extract_emails(html: str) -> list[str]:
 
 
 PHONE_RE = re.compile(
-    r"(?:\+?1[\s.\-]?)?\(?([2-9]\d{2})\)?[\s.\-]?(\d{3})[\s.\-]?(\d{4})(?!\d)"
+    r"(?<!\d)(?:\+?1[\s.\-]?)?\(?([2-9]\d{2})\)?[\s.\-]?(\d{3})[\s.\-]?(\d{4})(?!\d)"
 )
 TITLE_TOKEN_RE = re.compile(r"\b[A-Z][a-z]{1,15}\b")
 
@@ -187,7 +193,7 @@ def extract_phones(text: str) -> list[str]:
 
 
 def _names_in(fragment: str) -> list[str]:
-    """Title Case name pairs in `fragment`, in order, skipping title words.
+    """Maximal Title Case name runs in `fragment`, in order, skipping titles.
 
     Scans tokens instead of matching pairs directly. A pair regex is greedy:
     on "Owner Maria Lopez" it matches ("Owner", "Maria"), the stopword filter
@@ -198,6 +204,11 @@ def _names_in(fragment: str) -> list[str]:
     The whitespace-only gap check stops two survivors pairing across a
     filtered word: "John Smith, Owner Bob Jones" yields ["John Smith", "Bob Jones"],
     never "Smith Bob".
+
+    Runs are maximal, so a three-token name survives whole. A run longer than
+    MAX_NAME_TOKENS is rejected rather than truncated: four or more capitalised
+    words in a row is far more likely a heading or business name than a person,
+    and truncating would manufacture a plausible-looking wrong name.
     """
     tokens = [
         (match.group(0), match.start(), match.end())
@@ -286,6 +297,7 @@ USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
+MAX_PAGE_BYTES = 3_000_000
 
 CONTACT_LINK_RE = re.compile(r"contact|about|team|staff|coach", re.I)
 SOCIAL_RES = {
@@ -293,21 +305,39 @@ SOCIAL_RES = {
         r"https?://(?:www\.)?instagram\.com/[A-Za-z0-9_.\-]+/?"
     ),
     "facebook": re.compile(
-        r"https?://(?:www\.)?facebook\.com/[A-Za-z0-9_.\-]+/?"
+        r"https?://(?:www\.)?facebook\.com/"
+        r"(?:p/|pages/[^/\s\"'<>]+/|people/[^/\s\"'<>]+/)?"
+        r"[A-Za-z0-9_.\-]+/?"
     ),
     "linkedin": re.compile(
         r"https?://(?:www\.)?linkedin\.com/(?:company|in)/[A-Za-z0-9_.\-]+/?"
     ),
 }
+SOCIAL_PREFIX_PATHS = {"p", "pages", "people"}
 SOCIAL_JUNK_PATHS = {
     "tr", "sharer", "sharer.php", "share.php", "profile.php",
     "plugins", "intent", "dialog", "login", "home.php",
+    "reel", "reels", "explore", "stories", "tv", "share", "watch",
+    "groups", "events", "hashtag", "photo", "photos",
 }
 
 
-def _first_path_segment(url: str) -> str:
-    """Lowercased first path segment of `url`, or "" when it has none."""
-    return urlparse(url).path.strip("/").split("/")[0].lower()
+def _is_usable_social(url: str) -> bool:
+    """True when `url` identifies a specific profile rather than a stub.
+
+    A prefix segment such as Facebook's /p/ is only meaningful when a name
+    follows it: "facebook.com/p/SLC-Padel-100086" is a real page, while a
+    bare "facebook.com/p/" is what a truncated match leaves behind. Because
+    the Instagram pattern stays single-segment, an Instagram post link can
+    only ever produce that bare form, so it is rejected here.
+    """
+    segments = [s for s in urlparse(url).path.split("/") if s]
+    if not segments:
+        return False
+    first = segments[0].lower()
+    if first in SOCIAL_PREFIX_PATHS:
+        return len(segments) >= 2
+    return first not in SOCIAL_JUNK_PATHS
 
 
 ENRICH_KEYS = (
@@ -358,7 +388,7 @@ def extract_socials(html: str) -> dict[str, str]:
         result[key] = ""
         for match in pattern.finditer(html):
             url = match.group(0)
-            if _first_path_segment(url) in SOCIAL_JUNK_PATHS:
+            if not _is_usable_social(url):
                 continue
             result[key] = url
             break
@@ -371,17 +401,30 @@ def empty_enrichment() -> dict[str, str]:
 
 
 def make_fetcher(timeout: float = 15.0):
-    """A fetch(url) -> html callable backed by a pooled httpx client."""
+    """A fetch(url) -> html callable backed by a pooled httpx client.
+
+    Streams with a byte cap and a content-type check: a club's "website" can
+    be anything, and Stage 2 is a single-threaded loop with no watchdog, so
+    one slow or oversized response would otherwise stall the whole stage.
+    """
     client = httpx.Client(
         follow_redirects=True,
-        timeout=timeout,
+        timeout=httpx.Timeout(timeout, connect=10.0),
         headers={"User-Agent": USER_AGENT},
     )
 
     def fetch(url: str) -> str:
-        response = client.get(url)
-        response.raise_for_status()
-        return response.text
+        with client.stream("GET", url) as response:
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "")
+            if not (content_type.startswith("text/") or "html" in content_type):
+                raise ValueError(f"not a web page: {content_type or 'unknown type'}")
+            body = b""
+            for chunk in response.iter_bytes():
+                body += chunk
+                if len(body) > MAX_PAGE_BYTES:
+                    raise ValueError(f"page exceeded {MAX_PAGE_BYTES} bytes")
+            return body.decode(response.encoding or "utf-8", errors="replace")
 
     return fetch
 
@@ -470,7 +513,8 @@ def read_cache(path: Path | None = None) -> tuple[list[dict], set[tuple[str, str
                 continue
             kind = obj.pop("type", None)
             if kind == "record":
-                records[obj.get("place_key", "")] = obj
+                key = obj.get("place_key", "")
+                records[key] = {**records.get(key, {}), **obj}
             elif kind == "pair":
                 pairs.add((obj.get("term", ""), obj.get("state", "")))
     return (list(records.values()), pairs)
@@ -506,7 +550,7 @@ def parse_rating_block(block: str) -> tuple[float | None, int]:
 
 
 def build_record(raw: dict, term: str, state: str, now: str) -> dict:
-    """A fully shaped record with every COLUMNS key present.
+    """A fully shaped record with every STAGE1_COLUMNS key present.
 
     `place_key` is guaranteed non-empty: when a Maps URL carries no feature id,
     the name and coordinates stand in. `read_cache` deduplicates on this key and
@@ -521,7 +565,7 @@ def build_record(raw: dict, term: str, state: str, now: str) -> dict:
     rating, reviews = parse_rating_block(raw.get("rating_block", ""))
     name = (raw.get("name") or "").strip()
 
-    record = {column: "" for column in COLUMNS}
+    record = {column: "" for column in STAGE1_COLUMNS}
     record.update({
         "place_key": parse_place_key(url) or f"{name}|{latitude},{longitude}",
         "name": name,
@@ -562,6 +606,7 @@ PAUSE_LISTING = (1.0, 3.0)
 PAUSE_QUERY = (5.0, 10.0)
 SCROLL_ROUNDS = 40
 STAGNANT_LIMIT = 3
+CONSECUTIVE_FAILURE_LIMIT = 3
 
 
 def _pause(bounds: tuple[float, float]) -> None:
@@ -639,24 +684,48 @@ def scrape_listing(page, url: str, term: str, state: str) -> dict:
     return build_record(raw, term, state, utc_now())
 
 
-def scrape_query(page, term: str, state: str, limit: int | None) -> tuple[int, int]:
+def should_mark_done(failed: int, complete: bool) -> bool:
+    """A pair is done only when it was fully covered and nothing failed.
+
+    Inferring completeness from `failed == 0` is what let a --limit run, a
+    feed timeout, and a single-result redirect each mark a state finished
+    that had not been scraped.
+    """
+    return complete and not failed
+
+
+def scrape_query(
+    page, term: str, state: str, limit: int | None
+) -> tuple[int, int, bool]:
     """Scrape every listing for one (term, state) pair.
 
-    Returns (scraped, failed). A non-zero failed count means the pair is
-    incomplete and must not be marked done, or those listings are lost for good.
+    Returns (scraped, failed, complete). `complete` says whether the pair was
+    covered end to end: a --limit truncation and a missing results feed both
+    make it False. Only a complete pair with no failures may be marked done,
+    or the listings it never reached are lost for good.
     """
     page.goto(build_search_url(term, state), wait_until="domcontentloaded", timeout=60000)
     accept_consent(page)
     if is_blocked(page):
         raise RuntimeError(f"blocked on {term} / {state} - rerun with --headed")
 
+    if "/maps/place/" in page.url:
+        print(f"  single result for {term} / {state}")
+        try:
+            append_record(scrape_listing(page, page.url, term, state))
+            return 1, 0, True
+        except Exception as exc:
+            print(f"  skipped the single result: {type(exc).__name__}: {exc}")
+            return 0, 1, True
+
     try:
         page.wait_for_selector(SELECTORS["feed"], timeout=20000)
     except PWTimeout:
         print(f"  no results feed for {term} / {state}")
-        return 0, 0
+        return 0, 0, False
 
     links = collect_result_links(page)
+    complete = limit is None
     if limit:
         links = links[:limit]
     print(f"  {len(links)} listings for {term} / {state}")
@@ -673,12 +742,13 @@ def scrape_query(page, term: str, state: str, limit: int | None) -> tuple[int, i
             print(f"  skipped a listing: {type(exc).__name__}: {exc}")
             failed += 1
         _pause(PAUSE_LISTING)
-    return scraped, failed
+    return scraped, failed, complete
 
 
 def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
     """Scrape every (term, state) pair not already in the cache."""
     _, done = read_cache()
+    consecutive_failures = 0
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless)
         context = browser.new_context(
@@ -692,16 +762,33 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
                     continue
                 print(f"searching: {term} / {state}")
                 try:
-                    scraped, failed = scrape_query(page, term, state, limit)
-                    if failed:
-                        print(
-                            f"  {failed} listing(s) failed; leaving "
-                            f"{term} / {state} unmarked so a re-run retries it"
-                        )
-                    else:
-                        mark_pair_done(term, state)
+                    scraped, failed, complete = scrape_query(page, term, state, limit)
                 except Exception as exc:
                     print(f"  FAILED {term} / {state}: {exc}")
+                    consecutive_failures += 1
+                    if consecutive_failures >= CONSECUTIVE_FAILURE_LIMIT:
+                        print(
+                            f"\nAborting: {consecutive_failures} queries failed in a "
+                            "row. Google may be blocking this run, or the browser "
+                            "died.\nNothing scraped so far is lost \u2014 re-run to resume, "
+                            "or use --headed to solve a CAPTCHA by hand."
+                        )
+                        browser.close()
+                        return
+                    _pause(PAUSE_QUERY)
+                    continue
+                consecutive_failures = 0
+                if should_mark_done(failed, complete):
+                    mark_pair_done(term, state)
+                else:
+                    reason = (
+                        f"{failed} listing(s) failed" if failed
+                        else "coverage incomplete"
+                    )
+                    print(
+                        f"  {reason}; leaving {term} / {state} unmarked "
+                        "so a re-run retries it"
+                    )
                 _pause(PAUSE_QUERY)
         browser.close()
 
@@ -715,7 +802,8 @@ SHEET_CHUNK = 500
 ADC_HINT = (
     "Authenticate once with:\n"
     "  gcloud auth application-default login \\\n"
-    "    --scopes=https://www.googleapis.com/auth/spreadsheets,"
+    "    --scopes=https://www.googleapis.com/auth/cloud-platform,"
+    "https://www.googleapis.com/auth/spreadsheets,"
     "https://www.googleapis.com/auth/drive.readonly"
 )
 
@@ -926,7 +1014,7 @@ def main(argv: list[str] | None = None) -> int:
             parse_list_arg(args.terms, SEARCH_TERMS),
             parse_list_arg(args.states, STATES),
             limit=args.limit,
-            headless=not args.headed,
+            headless=HEADLESS and not args.headed,
             force=args.force,
         )
         if ENRICH_SITES and not args.no_enrich:

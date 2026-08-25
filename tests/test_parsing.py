@@ -114,6 +114,11 @@ def test_extract_phones_dedupes_across_formats():
     assert scrape.extract_phones(text) == ["+15125550100", "+15125550199"]
 
 
+def test_extract_phones_ignores_long_digit_runs():
+    assert scrape.extract_phones("SKU 1234567890123") == []
+    assert scrape.extract_phones("Call (512) 555-0100") == ["+15125550100"]
+
+
 def test_find_owner_contact_matches_name_before_title():
     text = "John Smith, Owner - (512) 555-0100"
     assert scrape.find_owner_contact(text) == ("John Smith", "+15125550100")
@@ -245,6 +250,22 @@ def test_enrich_website_records_fetch_failure():
     assert result["emails"] == ""
 
 
+def test_enrich_website_survives_a_failing_contact_page():
+    pages = {
+        "https://austinpadel.com": fixture("club_site.html"),
+        "https://austinpadel.com/about": fixture("club_about.html"),
+    }
+
+    def fetch(url):
+        if url not in pages:
+            raise TimeoutError("contact page timed out")
+        return pages[url]
+
+    result = scrape.enrich_website("https://austinpadel.com", fetch)
+    assert result["emails"] == "info@austinpadel.com"
+    assert result["enrich_error"] == ""
+
+
 def test_enrich_website_blank_url_returns_empty():
     assert scrape.enrich_website("", fake_fetcher()) == scrape.empty_enrichment()
 
@@ -264,6 +285,21 @@ def test_read_cache_dedupes_on_place_key_last_wins(tmp_path):
     records, _ = scrape.read_cache(cache)
     assert len(records) == 1
     assert records[0]["emails"] == "a@b.c"
+
+
+def test_read_cache_merges_enrichment_over_a_rescrape(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    scrape.append_record(
+        {"place_key": "k", "name": "X", "emails": "a@b.c",
+         "enriched_at": "2026-01-01T00:00:00+00:00"},
+        cache,
+    )
+    scrape.append_record({"place_key": "k", "name": "X", "phone": "+15125550100"}, cache)
+    records, _ = scrape.read_cache(cache)
+    assert len(records) == 1
+    assert records[0]["emails"] == "a@b.c"
+    assert records[0]["enriched_at"]
+    assert records[0]["phone"] == "+15125550100"
 
 
 def test_mark_pair_done_round_trips(tmp_path):
@@ -332,7 +368,7 @@ def test_build_record_shapes_every_column():
     }
     record = scrape.build_record(raw, "padel club", "Texas", "2026-08-24T00:00:00+00:00")
 
-    assert set(record) == set(scrape.COLUMNS)
+    assert set(record) == set(scrape.STAGE1_COLUMNS)
     assert record["place_key"] == "0x864b1a:0x9fe1"
     assert record["name"] == "Austin Padel Club"
     assert record["city"] == "Austin"
@@ -377,6 +413,28 @@ def test_extract_socials_keeps_paths_that_only_start_like_junk():
     assert scrape.extract_socials(html)["facebook"] == "https://www.facebook.com/trainers"
 
 
+def test_extract_socials_prefers_a_profile_over_an_earlier_post_link():
+    html = (
+        '<a href="https://www.instagram.com/p/CabcDEF/">post</a>'
+        '<a href="https://www.instagram.com/slcpadelclub/">profile</a>'
+    )
+    assert scrape.extract_socials(html)["instagram"] == (
+        "https://www.instagram.com/slcpadelclub/"
+    )
+
+
+def test_extract_socials_keeps_a_named_facebook_page_prefix():
+    html = '<a href="https://www.facebook.com/p/SLC-Padel-100086">fb</a>'
+    assert scrape.extract_socials(html)["facebook"] == (
+        "https://www.facebook.com/p/SLC-Padel-100086"
+    )
+
+
+def test_extract_socials_rejects_a_bare_prefix_stub():
+    html = '<a href="https://www.facebook.com/p/">fb</a>'
+    assert scrape.extract_socials(html)["facebook"] == ""
+
+
 def test_record_to_row_follows_column_order():
     record = {"place_key": "k", "name": "Padel X", "reviews": 12}
     row = scrape.record_to_row(record)
@@ -392,7 +450,7 @@ def test_record_to_row_renders_none_as_blank():
 
 
 def test_row_range_spans_every_column():
-    assert scrape.row_range(2) == "A2:X2"
+    assert scrape.row_range(2) == "A2:Y2"
 
 
 def test_plan_upserts_appends_unknown_keys():
@@ -454,6 +512,13 @@ def test_write_csv_round_trips(tmp_path):
         rows = list(csv.reader(handle))
     assert rows[0] == scrape.COLUMNS
     assert rows[1][scrape.COLUMNS.index("name")] == "Padel X"
+
+
+def test_should_mark_done_requires_completeness_and_no_failures():
+    assert scrape.should_mark_done(0, True) is True
+    assert scrape.should_mark_done(0, False) is False
+    assert scrape.should_mark_done(2, True) is False
+    assert scrape.should_mark_done(2, False) is False
 
 
 def test_run_stage2_records_a_crash_instead_of_aborting(tmp_path, monkeypatch, capsys):
