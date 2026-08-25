@@ -76,6 +76,7 @@ Three units:
 | --- | --- | --- |
 | `app.py` | The window and its widgets. Owns the main thread. Never scrapes. | `runstate`, `scrape` |
 | `runstate.py` | Folds an event stream into what the screen shows. Pure. | nothing |
+| `widgets.py` | Custom `Canvas` widgets the theme cannot provide: `RoundedButton`, `CoverageGrid`. | `tkinter` only |
 | `scrape.py` | Unchanged scraping, plus an event hook and a stop flag. | as today |
 
 ## 5. Changes to `scrape.py`
@@ -239,12 +240,32 @@ differences. Layout must therefore size text containers by measuring rendered
 text rather than by hardcoded pixel widths. Font smoothing differs between the
 two systems, and the window's own title bar belongs to the OS.
 
-**Not achievable in `ttk`:** rounded corners and drop shadows. Widgets under
-`clam` are square. The mockups draw buttons with a small radius; the app uses
-square buttons, which suits a native toolkit and costs nothing. Reproducing
-the radius would mean drawing every button on a `Canvas` and reimplementing
-hover, press, focus and disabled states by hand, which is a poor trade for a
-few pixels of corner.
+**Rounded corners are drawn, not themed.** `ttk` widgets are square under every
+theme, so the mockups' button radius is delivered by a custom `Canvas` widget,
+`RoundedButton`, in `widgets.py`. The rounded outline is a `create_polygon`
+with `smooth=True` through the corner points, which is the standard Tk idiom
+and gives a visually exact radius at these sizes.
+
+A drawn button is not a real button, so it must reimplement by hand everything
+`ttk` would have provided. All of the following are requirements, not nice to
+have, because a control that looks like a button and does not behave like one
+is worse than a square button:
+
+- **Visual states:** normal, hover, pressed, disabled, and keyboard focus.
+  Pressed state must track the pointer, so a press that drags off the button
+  and releases does not fire.
+- **Keyboard:** reachable by Tab in reading order, activated by Space and
+  Return, and showing a visible focus ring. Tk gives a `Canvas` no focus
+  behaviour for free; it is wired explicitly with `takefocus=1` and
+  `<FocusIn>` / `<FocusOut>` bindings.
+- **Disabled** buttons take no clicks, are skipped by Tab, and use the muted
+  palette rather than a lower opacity, which Tk does not offer.
+- **Label metrics:** the button sizes itself from the measured width of its
+  text in the resolved font, so it holds together when the face differs
+  between platforms.
+
+Drop shadows remain unavailable and are not used. The design does not rely on
+them.
 
 ## 8. Error handling
 
@@ -286,6 +307,7 @@ command for anyone who takes a zip instead.
 ```
 app.py                  the window
 runstate.py             pure state folding and formatting
+widgets.py              RoundedButton and CoverageGrid, drawn on a Canvas
 scrape.py               unchanged scraping, plus event hook and stop flag
 pyproject.toml          dependencies
 uv.lock                 exact resolved versions
@@ -308,8 +330,15 @@ browser, network or display is involved.
 swallowing a listener error, and for the stop flag halting a loop. Its
 existing 74 tests must pass unchanged.
 
+`widgets.py`'s geometry is unit-tested where it is pure: the corner-point
+generator for a given rectangle and radius, and the label-driven width
+calculation. Their drawing and event behaviour is verified by hand.
+
 `app.py` is verified by launching it: the four states, a real short scrape, a
-stop mid-run, and a window close during a run.
+stop mid-run, and a window close during a run. `RoundedButton` is additionally
+checked by keyboard alone, with the mouse untouched, to confirm Tab order,
+Space and Return activation, the focus ring, and that disabled buttons are
+skipped.
 
 ## 12. Risks
 
@@ -318,5 +347,6 @@ stop mid-run, and a window close during a run.
 | Widget code drifts onto the worker thread and corrupts Tk state | All widget access lives in `app.py` methods called only from the `root.after` tick. Nothing in `runstate.py` imports `tkinter`. |
 | A slow repaint blocks the tick during a fast event burst | Events are drained in batches and the grid repaints at most once per tick. |
 | Windows appearance differs from the macOS mockups | Addressed by section 7a: forced `clam` theme and an explicit palette pin the look. Residual difference is the font face only, which is why text containers are measured rather than fixed. |
+| `RoundedButton` behaves unlike a real button (no keyboard, dead focus, click-through when dragged off) | The behaviours are spec requirements above, and the widget is verified by keyboard alone with the mouse untouched. |
 | A teammate's `uv` install is blocked by corporate policy | The README documents the manual path: install Python 3.12, then `pip install -r requirements.txt`. |
 | The event hook changes CLI output | The default listener reproduces today's strings, and the existing tests cover the code paths that emit them. |
