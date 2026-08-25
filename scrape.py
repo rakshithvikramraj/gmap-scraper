@@ -22,6 +22,8 @@ from google.auth.exceptions import DefaultCredentialsError, RefreshError
 from gspread.utils import rowcol_to_a1
 from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
 
+import paths
+
 # ---------------------------------------------------------------------------
 # CONFIG - the only block you normally need to edit
 # ---------------------------------------------------------------------------
@@ -67,7 +69,9 @@ STAGE1_COLUMNS = [
     "maps_url", "search_term", "search_state", "scraped_at",
 ]
 
-DATA_DIR = Path("data")
+# Resolved rather than hardcoded: a frozen bundle has no working directory
+# to be relative to. From a checkout this is still exactly Path("data").
+DATA_DIR = paths.data_dir()
 CACHE_PATH = DATA_DIR / "cache.jsonl"
 CSV_PATH = DATA_DIR / "results.csv"
 
@@ -813,6 +817,9 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
     emit("run_start", terms=list(terms), states=list(states),
          total_queries=len(terms) * len(states))
     consecutive_failures = 0
+    # Must precede sync_playwright(): the driver reads the browser path once,
+    # when it starts. A no-op outside a bundle.
+    paths.use_bundled_browsers()
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless)
         context = browser.new_context(

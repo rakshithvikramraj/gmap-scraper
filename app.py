@@ -13,6 +13,8 @@ import threading
 import time
 from pathlib import Path
 
+import paths
+
 
 def _ensure_tcl_paths() -> None:
     """Point Tk at the Tcl/Tk that ships with this interpreter.
@@ -25,7 +27,14 @@ def _ensure_tcl_paths() -> None:
 
     The version is globbed rather than hardcoded: pinning tcl8.6/tk8.6 would
     silently no-op on a Tcl 9 build and surface as a TclError at import.
+
+    A frozen bundle is exempt: PyInstaller ships its own Tcl/Tk and sets both
+    variables from its runtime hook. There, sys.base_prefix points into the
+    unpacked bundle, where this glob would at best waste a stat and at worst
+    invent a path that shadows the working one.
     """
+    if paths.frozen():
+        return
     lib = Path(sys.base_prefix) / "lib"
     for variable, prefix in (("TCL_LIBRARY", "tcl"), ("TK_LIBRARY", "tk")):
         if os.environ.get(variable):
@@ -51,7 +60,7 @@ import scrape
 import settings
 from widgets import PALETTE, CoverageGrid, RoundedButton
 
-SETTINGS_PATH = Path("data") / "settings.json"
+SETTINGS_PATH = paths.data_dir() / "settings.json"
 
 # The visible panel is the single source of truth for what render() paints; the
 # pump uses this to follow a status change the user did not ask for (a mid-run
