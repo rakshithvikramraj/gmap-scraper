@@ -173,9 +173,6 @@ def extract_emails(html: str) -> list[str]:
     )
 
 
-PHONE_RE = re.compile(
-    r"(?<!\d)(?:\+?1[\s.\-]?)?\(?([2-9]\d{2})\)?[\s.\-]?(\d{3})[\s.\-]?(\d{4})(?!\d)"
-)
 TITLE_TOKEN_RE = re.compile(r"\b[A-Z][a-z]{1,15}\b")
 
 OWNER_KEYWORDS = (
@@ -216,14 +213,11 @@ def normalize_phone(text: str, region: str = "US") -> str:
 def extract_phones(text: str, region: str = "US") -> list[str]:
     """Valid phone numbers in `text`, E.164, deduplicated, in order.
 
-    PhoneNumberMatcher, not PHONE_RE. The regex is US-shaped and never
-    matched "022 2822 1234", so pairing it with an international validator
-    would report no phones at all for a business outside the US. The matcher
+    PhoneNumberMatcher, not a regex. A US-shaped regex never matched
+    "022 2822 1234", so pairing it with an international validator would
+    report no phones at all for a business outside the US. The matcher
     scans free text for any format valid in `region`, and rejects SKUs and
     order numbers on its own.
-
-    PHONE_RE stays in the file - the owner-name proximity search still uses
-    it - but no longer feeds this function.
     """
     seen: list[str] = []
     for match in phonenumbers.PhoneNumberMatcher(text, region or "US"):
@@ -303,7 +297,7 @@ def find_owner_contact(text: str, region: str = "US") -> tuple[str, str]:
     concatenation of several pages can easily put an unrelated front-desk
     number within OWNER_WINDOW characters of an "Owner" heading further down.
 
-    PhoneNumberMatcher, not PHONE_RE, finds the candidates -- the same
+    PhoneNumberMatcher, not a regex, finds the candidates -- the same
     international coverage extract_phones uses. A US-only regex here would
     silently lose both the number and the name for a business outside the US:
     the name search is anchored on the phone match's position, so a candidate
