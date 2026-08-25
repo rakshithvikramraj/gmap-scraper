@@ -454,3 +454,24 @@ def test_write_csv_round_trips(tmp_path):
         rows = list(csv.reader(handle))
     assert rows[0] == scrape.COLUMNS
     assert rows[1][scrape.COLUMNS.index("name")] == "Padel X"
+
+
+def test_run_stage2_records_a_crash_instead_of_aborting(tmp_path, monkeypatch, capsys):
+    cache = tmp_path / "cache.jsonl"
+    monkeypatch.setattr(scrape, "CACHE_PATH", cache)
+    scrape.append_record(
+        {"place_key": "k", "name": "Boom Club", "website": "https://boom.example"},
+        cache,
+    )
+
+    def exploding(*args, **kwargs):
+        raise ValueError("parser blew up")
+
+    monkeypatch.setattr(scrape, "make_fetcher", lambda *a, **k: (lambda url: ""))
+    monkeypatch.setattr(scrape, "enrich_website", exploding)
+
+    scrape.run_stage2()
+
+    records, _ = scrape.read_cache(cache)
+    assert records[0]["enriched_at"]
+    assert "ValueError" in records[0]["enrich_error"]

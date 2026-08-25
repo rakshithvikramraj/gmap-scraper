@@ -875,9 +875,14 @@ def run_stage2(force: bool = False) -> None:
     print(f"enriching {len(targets)} club websites")
     fetch = make_fetcher()
     for index, record in enumerate(targets, start=1):
-        enrichment = enrich_website(
-            record["website"], fetch, record.get("phone", "")
-        )
+        try:
+            enrichment = enrich_website(
+                record["website"], fetch, record.get("phone", "")
+            )
+        except Exception as exc:
+            enrichment = empty_enrichment()
+            enrichment["enrich_error"] = f"{type(exc).__name__}: {exc}"[:200]
+            print(f"  enrichment crashed for {record.get('name', '?')}: {exc}")
         updated = dict(record)
         updated.update(
             {k: v for k, v in enrichment.items() if k in COLUMNS}
