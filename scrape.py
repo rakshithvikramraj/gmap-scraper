@@ -180,13 +180,17 @@ OWNER_KEYWORDS = (
     "general manager", "club manager", "managing director", "director",
     "president", "principal", "ceo",
 )
+# Every OWNER_KEYWORDS word is folded in below rather than hand-listed, so
+# the two sets cannot drift apart again: a keyword added here without also
+# adding it there is exactly how "Cofounder James Hall" and "Proprietor
+# James Hall" kept the title stuck to the name.
 NAME_STOPWORDS = {
     "general", "manager", "managing", "director", "club", "padel", "tennis",
     "contact", "phone", "email", "office", "front", "desk", "head", "coach",
     "the", "our", "call", "text", "united", "states", "founder", "owner",
     "president", "principal", "monday", "friday", "saturday", "sunday",
     "book", "now", "court", "courts", "sports", "center", "centre", "academy",
-}
+} | {word for keyword in OWNER_KEYWORDS for word in keyword.replace("-", " ").split()}
 OWNER_WINDOW = 120
 MAX_NAME_TOKENS = 3
 

@@ -201,6 +201,20 @@ def test_find_owner_contact_us_cases_are_unaffected_by_the_region_default():
     assert scrape.find_owner_contact(text) == ("Maria Lopez", "+15125550100")
 
 
+@pytest.mark.parametrize("keyword", scrape.OWNER_KEYWORDS)
+def test_find_owner_contact_strips_every_keyword_from_the_name(keyword):
+    # NAME_STOPWORDS and OWNER_KEYWORDS used to be two independently
+    # hand-maintained lists, and they drifted: "cofounder", "proprietor" and
+    # "ceo" were keywords with no matching stopword, so the title stayed
+    # stuck to the name -- "Cofounder James Hall" instead of "James Hall".
+    # NAME_STOPWORDS is now derived from OWNER_KEYWORDS, so every keyword is
+    # covered by construction; this test is the guard that keeps it that way.
+    text = f"{keyword.title()} James Hall - (512) 555-0100"
+    name, phone = scrape.find_owner_contact(text)
+    assert name == "James Hall", f"{keyword!r} leaked into the name: {name!r}"
+    assert phone == "+15125550100"
+
+
 import pathlib
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
