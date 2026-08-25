@@ -1029,6 +1029,14 @@ def open_worksheet():
         worksheet = spreadsheet.add_worksheet(
             title=WORKSHEET, rows=2000, cols=len(COLUMNS)
         )
+    # Unconditional, not just when the header looks stale: a sheet created
+    # before COLUMNS grew is narrower than COLUMNS but its existing header
+    # still compares unequal to the new one, so this must run regardless of
+    # that comparison. `values.update` (below) does not auto-expand a grid
+    # the way `append` does -- without this, writing a header wider than the
+    # sheet fails the whole push with a 400 "exceeds grid limits".
+    if worksheet.col_count < len(COLUMNS):
+        worksheet.add_cols(len(COLUMNS) - worksheet.col_count)
     if worksheet.row_values(1) != COLUMNS:
         worksheet.update(range_name="A1", values=[COLUMNS])
     return worksheet

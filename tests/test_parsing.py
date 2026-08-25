@@ -552,6 +552,76 @@ def test_plan_upserts_updates_known_keys():
     assert updates[0][1][scrape.COLUMNS.index("name")] == "Padel X"
 
 
+class FakeWorksheet:
+    """Just enough of gspread's Worksheet for open_worksheet to run offline."""
+
+    def __init__(self, col_count, header):
+        self.col_count = col_count
+        self._header = header
+        self.add_cols_calls: list[int] = []
+        self.update_calls: list[tuple] = []
+
+    def row_values(self, row):
+        return self._header if row == 1 else []
+
+    def add_cols(self, n):
+        self.add_cols_calls.append(n)
+        self.col_count += n
+
+    def update(self, range_name, values):
+        self.update_calls.append((range_name, values))
+        self._header = values[0]
+
+
+class FakeSpreadsheet:
+    def __init__(self, worksheet):
+        self.title = "Fake Sheet"
+        self._worksheet = worksheet
+
+    def worksheet(self, name):
+        return self._worksheet
+
+
+class FakeSheetsClient:
+    def __init__(self, spreadsheet):
+        self._spreadsheet = spreadsheet
+
+    def open_by_url(self, url):
+        return self._spreadsheet
+
+
+def _patch_sheets_client(monkeypatch, spreadsheet):
+    monkeypatch.setattr(scrape.google.auth, "default", lambda scopes: (None, None))
+    monkeypatch.setattr(scrape.gspread, "authorize",
+                        lambda creds: FakeSheetsClient(spreadsheet))
+
+
+def test_open_worksheet_widens_a_sheet_narrower_than_columns(monkeypatch):
+    # COLUMNS grew from 25 to len(scrape.COLUMNS); a worksheet created before
+    # that grows still reports the old, narrower col_count. write_records
+    # then batch-updates an A2:AB2-shaped range against a 25-wide grid, which
+    # the Sheets API rejects with a 400 "exceeds grid limits" -- every push
+    # and --check-auth would fail on the first run after upgrade, for every
+    # existing install, unless the sheet is widened first.
+    worksheet = FakeWorksheet(col_count=25, header=scrape.COLUMNS[:25])
+    _patch_sheets_client(monkeypatch, FakeSpreadsheet(worksheet))
+
+    result = scrape.open_worksheet()
+
+    assert worksheet.add_cols_calls == [len(scrape.COLUMNS) - 25]
+    assert result.col_count == len(scrape.COLUMNS)
+    assert result.update_calls[-1][1] == [scrape.COLUMNS]
+
+
+def test_open_worksheet_does_not_widen_an_already_wide_enough_sheet(monkeypatch):
+    worksheet = FakeWorksheet(col_count=len(scrape.COLUMNS), header=scrape.COLUMNS)
+    _patch_sheets_client(monkeypatch, FakeSpreadsheet(worksheet))
+
+    scrape.open_worksheet()
+
+    assert worksheet.add_cols_calls == []
+
+
 def test_check_auth_explains_insufficient_scopes(monkeypatch, capsys):
     def raise_permission_error():
         raise PermissionError()
