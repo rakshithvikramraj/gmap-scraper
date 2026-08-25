@@ -5,7 +5,7 @@ Run `python scrape.py --help` for usage.
 
 import re
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote
 
 # ---------------------------------------------------------------------------
 # CONFIG - the only block you normally need to edit
@@ -90,3 +90,40 @@ def split_address(address: str) -> tuple[str, str, str]:
     if not match:
         return ("", "", "")
     return (match.group(1).strip(), match.group(2), match.group(3))
+
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+MAILTO_RE = re.compile(r"mailto:([^\"'?>\s]+)", re.I)
+
+JUNK_LOCALS = {"noreply", "no-reply", "donotreply", "do-not-reply"}
+JUNK_DOMAINS = {
+    "sentry.io", "wixpress.com", "example.com", "example.org",
+    "godaddy.com", "squarespace.com", "schema.org", "w3.org",
+    "sentry.wixpress.com",
+}
+IMAGE_EXT_RE = re.compile(r"\.(png|jpe?g|gif|webp|svg|ico)$", re.I)
+HEX_LOCAL_RE = re.compile(r"^[0-9a-f]{20,}$", re.I)
+
+
+def is_junk_email(email: str) -> bool:
+    """True for addresses that are platform noise rather than contacts."""
+    local, _, domain = email.lower().partition("@")
+    if not domain:
+        return True
+    if local in JUNK_LOCALS:
+        return True
+    if HEX_LOCAL_RE.match(local):
+        return True
+    if IMAGE_EXT_RE.search(domain):
+        return True
+    return any(domain == d or domain.endswith("." + d) for d in JUNK_DOMAINS)
+
+
+def extract_emails(html: str) -> list[str]:
+    """Every usable email address in `html`, sorted and deduplicated."""
+    found = set(EMAIL_RE.findall(html))
+    for match in MAILTO_RE.finditer(html):
+        found.add(unquote(match.group(1)))
+    return sorted(
+        {e.lower() for e in found if not is_junk_email(e)}
+    )

@@ -55,3 +55,43 @@ def test_split_address_multiword_city_and_zip_plus_four():
 def test_split_address_returns_blanks_when_unparseable():
     assert scrape.split_address("") == ("", "", "")
     assert scrape.split_address("Unit 5, Somewhere") == ("", "", "")
+
+
+def test_extract_emails_finds_plain_and_mailto():
+    html = """
+    <p>Reach us at info@padelclub.com</p>
+    <a href="mailto:bookings@padelclub.com?subject=Hi">Book</a>
+    """
+    assert scrape.extract_emails(html) == [
+        "bookings@padelclub.com",
+        "info@padelclub.com",
+    ]
+
+
+def test_extract_emails_deduplicates_and_lowercases():
+    html = "Info@Padel.com and info@padel.com"
+    assert scrape.extract_emails(html) == ["info@padel.com"]
+
+
+def test_extract_emails_drops_noreply_addresses():
+    html = "noreply@padel.com no-reply@padel.com real@padel.com"
+    assert scrape.extract_emails(html) == ["real@padel.com"]
+
+
+def test_extract_emails_drops_platform_artifacts():
+    html = 'x@sentry.io y@sentry-next.wixpress.com z@example.com ok@padel.com'
+    assert scrape.extract_emails(html) == ["ok@padel.com"]
+
+
+def test_extract_emails_drops_image_filenames():
+    html = '<img src="logo@2x.png"> real@padel.com'
+    assert scrape.extract_emails(html) == ["real@padel.com"]
+
+
+def test_extract_emails_drops_long_hex_locals():
+    html = "a1b2c3d4e5f60718293a4b5c@tracking.io good@padel.com"
+    assert scrape.extract_emails(html) == ["good@padel.com"]
+
+
+def test_extract_emails_empty_input():
+    assert scrape.extract_emails("") == []
