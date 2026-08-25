@@ -11,8 +11,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote_plus, unquote, urljoin, urlparse
 
+import google.auth
+import gspread
 import httpx
 from bs4 import BeautifulSoup
+from google.auth.exceptions import DefaultCredentialsError, RefreshError
+from gspread.utils import rowcol_to_a1
 from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
 
 # ---------------------------------------------------------------------------
@@ -698,3 +702,121 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
                     print(f"  FAILED {term} / {state}: {exc}")
                 _pause(PAUSE_QUERY)
         browser.close()
+
+
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.readonly",
+]
+SHEET_CHUNK = 500
+
+ADC_HINT = (
+    "Authenticate once with:\n"
+    "  gcloud auth application-default login \\\n"
+    "    --scopes=https://www.googleapis.com/auth/spreadsheets,"
+    "https://www.googleapis.com/auth/drive.readonly"
+)
+
+
+def record_to_row(record: dict) -> list[str]:
+    """A record rendered as a row in COLUMNS order."""
+    return [
+        "" if record.get(column) is None else str(record.get(column, ""))
+        for column in COLUMNS
+    ]
+
+
+def row_range(row_number: int) -> str:
+    """A1 range covering every column of one row, e.g. "A2:X2"."""
+    start = rowcol_to_a1(row_number, 1)
+    end = rowcol_to_a1(row_number, len(COLUMNS))
+    return f"{start}:{end}"
+
+
+def plan_upserts(existing, records):
+    """Split records into (row_number, row) updates and new-row appends."""
+    updates, appends = [], []
+    for record in records:
+        row = record_to_row(record)
+        row_number = existing.get(record.get("place_key", ""))
+        if row_number:
+            updates.append((row_number, row))
+        else:
+            appends.append(row)
+    return updates, appends
+
+
+def open_worksheet():
+    """The target worksheet, created with a header row if it is missing.
+
+    Uses Application Default Credentials, so the script acts as the Google
+    account that ran `gcloud auth application-default login`. That account
+    already owns the sheet, so no sharing step is needed.
+    """
+    credentials, _ = google.auth.default(scopes=SCOPES)
+    client = gspread.authorize(credentials)
+    spreadsheet = client.open_by_url(SHEET_URL)
+    try:
+        worksheet = spreadsheet.worksheet(WORKSHEET)
+    except gspread.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(
+            title=WORKSHEET, rows=2000, cols=len(COLUMNS)
+        )
+    if worksheet.row_values(1) != COLUMNS:
+        worksheet.update(range_name="A1", values=[COLUMNS])
+    return worksheet
+
+
+def existing_keys(worksheet) -> dict[str, int]:
+    """Map of place_key to its 1-based sheet row number."""
+    column = worksheet.col_values(1)
+    return {
+        key: number
+        for number, key in enumerate(column, start=1)
+        if number > 1 and key
+    }
+
+
+def write_records(records: list[dict]) -> None:
+    """Upsert every record into the sheet, batched to respect quotas."""
+    if not records:
+        return
+    worksheet = open_worksheet()
+    updates, appends = plan_upserts(existing_keys(worksheet), records)
+
+    for start in range(0, len(updates), SHEET_CHUNK):
+        worksheet.batch_update([
+            {"range": row_range(number), "values": [row]}
+            for number, row in updates[start:start + SHEET_CHUNK]
+        ])
+    for start in range(0, len(appends), SHEET_CHUNK):
+        worksheet.append_rows(
+            appends[start:start + SHEET_CHUNK], value_input_option="RAW"
+        )
+    print(f"  sheet: {len(updates)} updated, {len(appends)} added")
+
+
+def check_auth() -> bool:
+    """Verify credentials and sheet access, explaining any failure."""
+    try:
+        worksheet = open_worksheet()
+    except DefaultCredentialsError:
+        print("No Application Default Credentials found.")
+        print(ADC_HINT)
+        return False
+    except RefreshError:
+        print("Stored credentials have expired or been revoked.")
+        print(ADC_HINT)
+        return False
+    except gspread.SpreadsheetNotFound:
+        print("Sheet not found. Check SHEET_URL, and confirm you authenticated")
+        print("as the Google account that can open it.")
+        return False
+    except gspread.exceptions.APIError as exc:
+        print(f"Google API error: {exc}")
+        print("Enable both APIs and set a quota project:")
+        print("  gcloud services enable sheets.googleapis.com drive.googleapis.com")
+        print("  gcloud auth application-default set-quota-project YOUR_PROJECT_ID")
+        return False
+    print(f"OK: '{worksheet.spreadsheet.title}' / worksheet '{worksheet.title}'")
+    return True

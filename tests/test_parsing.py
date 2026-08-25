@@ -375,3 +375,36 @@ def test_extract_socials_rejects_tracking_and_stub_urls():
 def test_extract_socials_keeps_paths_that_only_start_like_junk():
     html = '<a href="https://www.facebook.com/trainers">t</a>'
     assert scrape.extract_socials(html)["facebook"] == "https://www.facebook.com/trainers"
+
+
+def test_record_to_row_follows_column_order():
+    record = {"place_key": "k", "name": "Padel X", "reviews": 12}
+    row = scrape.record_to_row(record)
+    assert len(row) == len(scrape.COLUMNS)
+    assert row[scrape.COLUMNS.index("place_key")] == "k"
+    assert row[scrape.COLUMNS.index("name")] == "Padel X"
+    assert row[scrape.COLUMNS.index("reviews")] == "12"
+    assert row[scrape.COLUMNS.index("emails")] == ""
+
+
+def test_record_to_row_renders_none_as_blank():
+    assert scrape.record_to_row({"name": None})[scrape.COLUMNS.index("name")] == ""
+
+
+def test_row_range_spans_every_column():
+    assert scrape.row_range(2) == "A2:X2"
+
+
+def test_plan_upserts_appends_unknown_keys():
+    updates, appends = scrape.plan_upserts({}, [{"place_key": "new"}])
+    assert updates == []
+    assert len(appends) == 1
+
+
+def test_plan_upserts_updates_known_keys():
+    updates, appends = scrape.plan_upserts(
+        {"known": 7}, [{"place_key": "known", "name": "Padel X"}]
+    )
+    assert appends == []
+    assert updates[0][0] == 7
+    assert updates[0][1][scrape.COLUMNS.index("name")] == "Padel X"
