@@ -38,3 +38,30 @@ def test_every_state_has_an_abbreviation():
     missing = [s for s in scrape.ALL_50 if s not in widgets.STATE_ABBR]
     assert missing == [], f"no abbreviation for {missing}"
     assert len(set(widgets.STATE_ABBR.values())) == 50, "abbreviations must be unique"
+
+
+def test_cell_rects_lays_out_row_by_row():
+    rects = widgets.cell_rects(3, cols=2, cell_w=100, cell_h=40, gap=10)
+    assert rects[0] == (0, 0, 100, 40)
+    assert rects[1] == (110, 0, 210, 40), "second cell sits one gap to the right"
+    assert rects[2] == (0, 50, 100, 90), "third cell wraps to the next row"
+
+
+def test_cell_rects_honours_an_origin():
+    rects = widgets.cell_rects(1, cols=5, cell_w=20, cell_h=10, gap=4, x0=7, y0=9)
+    assert rects[0] == (7, 9, 27, 19)
+
+
+def test_cell_rects_of_nothing_is_empty():
+    assert widgets.cell_rects(0, cols=10, cell_w=10, cell_h=10, gap=2) == []
+
+
+def test_grid_height_counts_partial_rows():
+    assert widgets.grid_height(50, cols=10, cell_h=44, gap=6) == 44 * 5 + 6 * 4
+    assert widgets.grid_height(51, cols=10, cell_h=44, gap=6) == 44 * 6 + 6 * 5
+    assert widgets.grid_height(0, cols=10, cell_h=44, gap=6) == 0
+
+
+def test_status_colour_covers_every_state_the_reducer_can_produce():
+    for status in ("pending", "done", "active", "partial", "failed"):
+        assert status in widgets.STATUS_COLORS

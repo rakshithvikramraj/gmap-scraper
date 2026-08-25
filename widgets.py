@@ -6,6 +6,7 @@ behaviour, so RoundedButton reimplements hover, press, focus, keyboard
 activation and disabled state explicitly.
 """
 
+import math
 import tkinter as tk
 
 PALETTE = {
@@ -183,3 +184,71 @@ class RoundedButton(tk.Canvas):
     def _on_key(self, _e):
         self._invoke()
         return "break"
+
+
+STATUS_COLORS = {
+    "pending": (PALETTE["sunken"], PALETTE["line"], PALETTE["faint"]),
+    "done":    ("#e4f1e8", PALETTE["done"], "#2f6b45"),
+    "active":  ("#e3ecf8", PALETTE["accent"], PALETTE["accent_d"]),
+    "partial": ("#faf0dc", PALETTE["partial"], "#8a6520"),
+    "failed":  ("#f8e8e6", PALETTE["failed"], "#8f342e"),
+}
+
+
+def cell_rects(count, cols, cell_w, cell_h, gap, x0=0, y0=0):
+    """Bounding boxes for `count` cells flowing left to right, top to bottom."""
+    rects = []
+    for index in range(count):
+        row, col = divmod(index, cols)
+        x = x0 + col * (cell_w + gap)
+        y = y0 + row * (cell_h + gap)
+        rects.append((x, y, x + cell_w, y + cell_h))
+    return rects
+
+
+def grid_height(count, cols, cell_h, gap) -> int:
+    """Pixel height the grid needs, counting a partial final row."""
+    if not count:
+        return 0
+    rows = math.ceil(count / cols)
+    return rows * cell_h + (rows - 1) * gap
+
+
+class CoverageGrid(tk.Canvas):
+    """Every state's progress as one grid of coloured cells.
+
+    Drawn on a single Canvas rather than built from one widget per state: a
+    repaint happens on every event tick, and fifty widgets would mean fifty
+    layout passes each time.
+    """
+
+    def __init__(self, master, labels, *, cols=10, cell_h=44, gap=6, font=None, **kw):
+        super().__init__(master, highlightthickness=0, bd=0,
+                         bg=kw.pop("bg", PALETTE["bg"]), **kw)
+        self._labels = list(labels)
+        self._cols = cols
+        self._cell_h = cell_h
+        self._gap = gap
+        self._font = font
+        self._coverage = {}
+        self.configure(height=grid_height(len(self._labels), cols, cell_h, gap))
+        self.bind("<Configure>", lambda _e: self._draw())
+
+    def update_coverage(self, coverage: dict) -> None:
+        self._coverage = dict(coverage)
+        self._draw()
+
+    def _draw(self) -> None:
+        self.delete("all")
+        width = max(self.winfo_width(), 1)
+        cell_w = max(1, (width - self._gap * (self._cols - 1)) / self._cols)
+        rects = cell_rects(len(self._labels), self._cols, cell_w,
+                           self._cell_h, self._gap)
+        for label, (x1, y1, x2, y2) in zip(self._labels, rects):
+            status = self._coverage.get(label, "pending")
+            fill, border, ink = STATUS_COLORS.get(status, STATUS_COLORS["pending"])
+            self.create_rectangle(x1, y1, x2, y2, fill=fill, outline=border,
+                                  width=2 if status == "active" else 1)
+            self.create_text((x1 + x2) / 2, (y1 + y2) / 2,
+                             text=STATE_ABBR.get(label, label[:2].upper()),
+                             fill=ink, font=self._font)
