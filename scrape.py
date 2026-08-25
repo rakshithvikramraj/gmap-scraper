@@ -808,6 +808,13 @@ def check_auth() -> bool:
         print("Stored credentials have expired or been revoked.")
         print(ADC_HINT)
         return False
+    except PermissionError:
+        print("Authenticated, but these credentials lack the required scopes.")
+        print("This is what `gcloud auth application-default login` produces when")
+        print("run without --scopes: user credentials cannot be re-scoped after")
+        print("the fact, so the scopes must be granted at login time.")
+        print(ADC_HINT)
+        return False
     except gspread.SpreadsheetNotFound:
         print("Sheet not found. Check SHEET_URL, and confirm you authenticated")
         print("as the Google account that can open it.")

@@ -408,3 +408,14 @@ def test_plan_upserts_updates_known_keys():
     assert appends == []
     assert updates[0][0] == 7
     assert updates[0][1][scrape.COLUMNS.index("name")] == "Padel X"
+
+
+def test_check_auth_explains_insufficient_scopes(monkeypatch, capsys):
+    def raise_permission_error():
+        raise PermissionError()
+
+    monkeypatch.setattr(scrape, "open_worksheet", raise_permission_error)
+    assert scrape.check_auth() is False
+    printed = capsys.readouterr().out
+    assert "scopes" in printed
+    assert "gcloud auth application-default login" in printed
