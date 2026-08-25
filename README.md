@@ -185,6 +185,17 @@ python scrape.py --headed             # visible browser, to solve a CAPTCHA
 python scrape.py --force              # re-scrape cached queries
 ```
 
+Geography is not limited to US states. `--country`, `--region` and `--city`
+target anywhere in the world, are each repeatable, and take over from
+`--states` whenever any of them is given:
+
+```bash
+python scrape.py --country "India"                             # a whole country
+python scrape.py --region "Texas,United States"                # a whole state/region
+python scrape.py --city "Austin,Texas,United States"           # a single city
+python scrape.py --city "Austin,Texas,United States" --city "Dallas,Texas,United States"
+```
+
 Progress is written to `data/cache.jsonl` as it happens, so an interrupted run
 resumes where it stopped. `data/results.csv` is always written as a backup.
 
@@ -199,9 +210,10 @@ maintenance point.
 next to a phone number under an ownership title. Expect 20-35% coverage; the
 rest of the rows rely on `phone`, `emails` and `other_phones`.
 
-A per-state count of 118 or more means that state hit Google's roughly
-120-result cap and is undersampled. Re-run it with narrower searches, for
-example `--terms "padel club Dallas","padel club Houston" --states Texas`.
+A per-region count of 118 or more means that region hit Google's roughly
+120-result cap and is undersampled. Narrow it with city-level targeting, for
+example `--city "Dallas,Texas,United States" --city "Houston,Texas,United
+States"`, rather than splitting search terms by hand.
 
 ## Building the packages
 
