@@ -131,7 +131,9 @@ def extract_emails(html: str) -> list[str]:
     """Every usable email address in `html`, sorted and deduplicated."""
     found = set(EMAIL_RE.findall(html))
     for match in MAILTO_RE.finditer(html):
-        found.add(unquote(match.group(1)))
+        candidate = unquote(match.group(1))
+        if EMAIL_RE.fullmatch(candidate):
+            found.add(candidate)
     return sorted(
         {e.lower() for e in found if not is_junk_email(e)}
     )
@@ -291,7 +293,16 @@ SOCIAL_RES = {
         r"https?://(?:www\.)?linkedin\.com/(?:company|in)/[A-Za-z0-9_.\-]+/?"
     ),
 }
-SOCIAL_JUNK = ("sharer", "share.php", "/tr?", "/plugins", "/intent/")
+SOCIAL_JUNK_PATHS = {
+    "tr", "sharer", "sharer.php", "share.php", "profile.php",
+    "plugins", "intent", "dialog", "login", "home.php",
+}
+
+
+def _first_path_segment(url: str) -> str:
+    """Lowercased first path segment of `url`, or "" when it has none."""
+    return urlparse(url).path.strip("/").split("/")[0].lower()
+
 
 ENRICH_KEYS = (
     "emails", "owner_name", "owner_phone", "other_phones",
@@ -329,13 +340,19 @@ def find_contact_links(base_url: str, html: str, limit: int = 3) -> list[str]:
 
 
 def extract_socials(html: str) -> dict[str, str]:
-    """First non-junk instagram, facebook and linkedin URL in `html`."""
+    """First real instagram, facebook and linkedin profile URL in `html`.
+
+    Rejects share widgets, tracking endpoints and stub URLs by first path
+    segment rather than by substring: "facebook.com/tr" is a tracking pixel and
+    must go, while "facebook.com/trainers" is a real page and must stay, so a
+    substring test on "tr" would throw away good links.
+    """
     result = {}
     for key, pattern in SOCIAL_RES.items():
         result[key] = ""
         for match in pattern.finditer(html):
             url = match.group(0)
-            if any(junk in url for junk in SOCIAL_JUNK):
+            if _first_path_segment(url) in SOCIAL_JUNK_PATHS:
                 continue
             result[key] = url
             break
@@ -616,8 +633,12 @@ def scrape_listing(page, url: str, term: str, state: str) -> dict:
     return build_record(raw, term, state, utc_now())
 
 
-def scrape_query(page, term: str, state: str, limit: int | None) -> int:
-    """Scrape every listing for one (term, state) pair. Returns the count."""
+def scrape_query(page, term: str, state: str, limit: int | None) -> tuple[int, int]:
+    """Scrape every listing for one (term, state) pair.
+
+    Returns (scraped, failed). A non-zero failed count means the pair is
+    incomplete and must not be marked done, or those listings are lost for good.
+    """
     page.goto(build_search_url(term, state), wait_until="domcontentloaded", timeout=60000)
     accept_consent(page)
     if is_blocked(page):
@@ -627,7 +648,7 @@ def scrape_query(page, term: str, state: str, limit: int | None) -> int:
         page.wait_for_selector(SELECTORS["feed"], timeout=20000)
     except PWTimeout:
         print(f"  no results feed for {term} / {state}")
-        return 0
+        return 0, 0
 
     links = collect_result_links(page)
     if limit:
@@ -637,14 +658,16 @@ def scrape_query(page, term: str, state: str, limit: int | None) -> int:
         print("  WARNING: at the ~120 result cap; this state is undersampled")
 
     scraped = 0
+    failed = 0
     for link in links:
         try:
             append_record(scrape_listing(page, link, term, state))
             scraped += 1
         except Exception as exc:
             print(f"  skipped a listing: {type(exc).__name__}: {exc}")
+            failed += 1
         _pause(PAUSE_LISTING)
-    return scraped
+    return scraped, failed
 
 
 def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
@@ -663,8 +686,14 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
                     continue
                 print(f"searching: {term} / {state}")
                 try:
-                    scrape_query(page, term, state, limit)
-                    mark_pair_done(term, state)
+                    scraped, failed = scrape_query(page, term, state, limit)
+                    if failed:
+                        print(
+                            f"  {failed} listing(s) failed; leaving "
+                            f"{term} / {state} unmarked so a re-run retries it"
+                        )
+                    else:
+                        mark_pair_done(term, state)
                 except Exception as exc:
                     print(f"  FAILED {term} / {state}: {exc}")
                 _pause(PAUSE_QUERY)

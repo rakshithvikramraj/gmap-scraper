@@ -356,3 +356,22 @@ def test_build_record_falls_back_when_no_place_key():
     assert record["place_key"] == "Nameless Club|None,None"
     assert record["rating"] == ""
     assert record["reviews"] == 0
+
+
+def test_extract_emails_rejects_escaped_mailto_artifacts():
+    html = r'<a href="mailto:info@club.com\">E</a><a href="mailto:real@club.com">R</a>'
+    assert scrape.extract_emails(html) == ["info@club.com", "real@club.com"]
+
+
+def test_extract_socials_rejects_tracking_and_stub_urls():
+    html = (
+        '<a href="https://www.facebook.com/tr">a</a>'
+        '<a href="https://www.facebook.com/profile.php">b</a>'
+        '<a href="https://www.facebook.com/realclub">c</a>'
+    )
+    assert scrape.extract_socials(html)["facebook"] == "https://www.facebook.com/realclub"
+
+
+def test_extract_socials_keeps_paths_that_only_start_like_junk():
+    html = '<a href="https://www.facebook.com/trainers">t</a>'
+    assert scrape.extract_socials(html)["facebook"] == "https://www.facebook.com/trainers"
