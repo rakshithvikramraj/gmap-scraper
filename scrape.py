@@ -4,13 +4,16 @@ Run `python scrape.py --help` for usage.
 """
 
 import json
+import random
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote_plus, unquote, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
+from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
 
 # ---------------------------------------------------------------------------
 # CONFIG - the only block you normally need to edit
@@ -516,3 +519,153 @@ def build_record(raw: dict, term: str, state: str, now: str) -> dict:
         "scraped_at": now,
     })
     return record
+
+
+SELECTORS = {
+    "feed": 'div[role="feed"]',
+    "result_link": 'a[href*="/maps/place/"]',
+    "consent": 'button[aria-label*="Accept all"], form[action*="consent"] button',
+    "name": "h1",
+    "address": 'button[data-item-id="address"]',
+    "phone": 'button[data-item-id^="phone:tel:"]',
+    "website": 'a[data-item-id="authority"]',
+    "category": 'button[jsaction*="category"]',
+    "rating_block": "div.F7nice",
+}
+END_OF_LIST = "You've reached the end of the list"
+BLOCK_MARKERS = ("unusual traffic", "not a robot", "/sorry/", "recaptcha")
+
+PAUSE_LISTING = (1.0, 3.0)
+PAUSE_QUERY = (5.0, 10.0)
+SCROLL_ROUNDS = 40
+STAGNANT_LIMIT = 3
+
+
+def _pause(bounds: tuple[float, float]) -> None:
+    time.sleep(random.uniform(*bounds))
+
+
+def _text(page, selector: str) -> str:
+    element = page.query_selector(selector)
+    return (element.inner_text() or "").strip() if element else ""
+
+
+def _attr(page, selector: str, name: str) -> str:
+    element = page.query_selector(selector)
+    if not element:
+        return ""
+    return element.get_attribute(name) or ""
+
+
+def is_blocked(page) -> bool:
+    """True when Google has served a CAPTCHA or unusual-traffic page."""
+    haystack = (page.url + " " + page.content()[:4000]).lower()
+    return any(marker in haystack for marker in BLOCK_MARKERS)
+
+
+def accept_consent(page) -> None:
+    """Dismiss the cookie interstitial if one is showing."""
+    button = page.query_selector(SELECTORS["consent"])
+    if button:
+        button.click()
+        page.wait_for_timeout(2000)
+
+
+def collect_result_links(page) -> list[str]:
+    """Scroll the results feed to the end and return every listing URL."""
+    seen = 0
+    stagnant = 0
+    for _ in range(SCROLL_ROUNDS):
+        feed = page.query_selector(SELECTORS["feed"])
+        if not feed:
+            break
+        feed.evaluate("el => el.scrollTo(0, el.scrollHeight)")
+        page.wait_for_timeout(1500)
+        if END_OF_LIST in (feed.inner_text() or ""):
+            break
+        count = len(page.query_selector_all(SELECTORS["result_link"]))
+        if count == seen:
+            stagnant += 1
+            if stagnant >= STAGNANT_LIMIT:
+                break
+        else:
+            stagnant = 0
+            seen = count
+
+    links: list[str] = []
+    for anchor in page.query_selector_all(SELECTORS["result_link"]):
+        href = anchor.get_attribute("href") or ""
+        if href and href not in links:
+            links.append(href)
+    return links
+
+
+def scrape_listing(page, url: str, term: str, state: str) -> dict:
+    """Open one listing and return its shaped record."""
+    page.goto(url, wait_until="domcontentloaded", timeout=45000)
+    page.wait_for_selector(SELECTORS["name"], timeout=20000)
+    raw = {
+        "url": page.url,
+        "name": _text(page, SELECTORS["name"]),
+        "category": _text(page, SELECTORS["category"]),
+        "address_label": _attr(page, SELECTORS["address"], "aria-label"),
+        "phone_item_id": _attr(page, SELECTORS["phone"], "data-item-id"),
+        "website": _attr(page, SELECTORS["website"], "href"),
+        "rating_block": _text(page, SELECTORS["rating_block"]),
+    }
+    return build_record(raw, term, state, utc_now())
+
+
+def scrape_query(page, term: str, state: str, limit: int | None) -> int:
+    """Scrape every listing for one (term, state) pair. Returns the count."""
+    page.goto(build_search_url(term, state), wait_until="domcontentloaded", timeout=60000)
+    accept_consent(page)
+    if is_blocked(page):
+        raise RuntimeError(f"blocked on {term} / {state} - rerun with --headed")
+
+    try:
+        page.wait_for_selector(SELECTORS["feed"], timeout=20000)
+    except PWTimeout:
+        print(f"  no results feed for {term} / {state}")
+        return 0
+
+    links = collect_result_links(page)
+    if limit:
+        links = links[:limit]
+    print(f"  {len(links)} listings for {term} / {state}")
+    if len(links) >= 118:
+        print("  WARNING: at the ~120 result cap; this state is undersampled")
+
+    scraped = 0
+    for link in links:
+        try:
+            append_record(scrape_listing(page, link, term, state))
+            scraped += 1
+        except Exception as exc:
+            print(f"  skipped a listing: {type(exc).__name__}: {exc}")
+        _pause(PAUSE_LISTING)
+    return scraped
+
+
+def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
+    """Scrape every (term, state) pair not already in the cache."""
+    _, done = read_cache()
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=headless)
+        context = browser.new_context(
+            user_agent=USER_AGENT, viewport={"width": 1280, "height": 900}
+        )
+        page = context.new_page()
+        for term in terms:
+            for state in states:
+                if not force and (term, state) in done:
+                    print(f"skip (cached): {term} / {state}")
+                    continue
+                print(f"searching: {term} / {state}")
+                try:
+                    scrape_query(page, term, state, limit)
+                    mark_pair_done(term, state)
+                except Exception as exc:
+                    print(f"  FAILED {term} / {state}: {exc}")
+                _pause(PAUSE_QUERY)
+        browser.close()
