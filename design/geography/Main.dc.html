@@ -1,0 +1,205 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    * { box-sizing: border-box; }
+    a { color: oklch(0.870 0.190 122); } a:hover { color: oklch(0.780 0.190 122); }
+    .app { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 13px;
+           color: oklch(0.962 0.003 250); -webkit-font-smoothing: antialiased; }
+    .u { font-family: "Unbounded", "Segoe UI", system-ui, sans-serif; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font-variant-numeric: tabular-nums; }
+    .k { font-family: "Unbounded", "Segoe UI", system-ui, sans-serif; font-size: 9px;
+         font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase;
+         color: oklch(0.540 0.010 250); }
+    .pane { display: flex; flex-direction: column; min-height: 0;
+            border-right: 1px solid oklch(0.238 0.008 250); }
+    .ph { height: 36px; flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+          padding: 0 14px; border-bottom: 1px solid oklch(0.238 0.008 250); }
+    .r { height: 30px; flex-shrink: 0; display: flex; align-items: center; gap: 10px;
+         padding: 0 14px; color: oklch(0.790 0.008 250); }
+    .r.on { color: oklch(0.975 0.003 250); }
+    .r.cur { background: oklch(0.870 0.190 122 / 0.10); color: oklch(0.975 0.003 250);
+             box-shadow: inset 2px 0 0 oklch(0.870 0.190 122); }
+    .tick { width: 15px; height: 15px; border-radius: 4px; flex-shrink: 0;
+            border: 1px solid oklch(0.350 0.010 250); display: inline-flex;
+            align-items: center; justify-content: center; }
+    .tick.on { background: oklch(0.870 0.190 122); border-color: oklch(0.870 0.190 122); }
+    .nm { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .n { font-size: 11px; color: oklch(0.540 0.010 250); flex-shrink: 0; }
+    .kbd { display: inline-flex; align-items: center; justify-content: center; height: 19px;
+           min-width: 19px; padding: 0 5px; border-radius: 5px; font-size: 10px;
+           background: oklch(0.255 0.008 250); color: oklch(0.700 0.010 250); }
+    .chip { height: 25px; padding: 0 11px; border-radius: 7px; font-size: 12px;
+            background: oklch(0.870 0.190 122 / 0.13); color: oklch(0.870 0.130 122);
+            display: inline-flex; align-items: center; gap: 8px; }
+  </style>
+</helmet>
+
+<div class="app" style="width: 1100px; height: 740px; background: oklch(0.155 0.006 250); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 38px; flex-shrink: 0; display: flex; align-items: center; padding: 0 13px; gap: 8px; border-bottom: 1px solid oklch(0.222 0.008 250);">
+    <div style="display: flex; gap: 8px;">
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.60 0.14 25);"></div>
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.68 0.11 85);"></div>
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.64 0.12 145);"></div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div class="u" style="font-size: 11px; font-weight: 600; letter-spacing: 0.19em; text-transform: uppercase; color: oklch(0.700 0.010 250);">Wkey<span style="color: oklch(0.870 0.190 122);">&middot;</span>Lead Scraper</div>
+    <div style="flex-grow: 1;"></div>
+    <div class="mono n">316 queued</div>
+  </div>
+
+  <div style="flex-shrink: 0; padding: 15px 16px 13px; display: flex; align-items: center; gap: 12px;">
+    <div style="flex-grow: 1; height: 42px; border-radius: 10px; background: oklch(0.192 0.007 250); border: 1px solid oklch(0.275 0.009 250); display: flex; align-items: center; gap: 12px; padding: 0 15px;">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.8" stroke="oklch(0.870 0.190 122)" stroke-width="1.5"/><path d="M10.6 10.6L14 14" stroke="oklch(0.870 0.190 122)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <span class="u" style="color: oklch(0.540 0.010 250); font-size: 13px; font-weight: 300;">Search any country, state or city</span>
+      <div style="flex-grow: 1;"></div>
+      <span class="kbd">&#8984;</span><span class="kbd">K</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 7px;">
+      <div class="chip">United States <span class="mono" style="font-size: 11px;">12</span></div>
+      <div class="chip">India <span class="mono" style="font-size: 11px;">8</span></div>
+      <div class="chip">United Kingdom <span class="mono" style="font-size: 11px;">all</span></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; margin: 0 16px; border: 1px solid oklch(0.275 0.009 250); border-radius: 12px; background: oklch(0.178 0.007 250); display: flex; overflow: hidden; min-height: 0;">
+
+    <div class="pane" style="width: 248px;">
+      <div class="ph"><span class="k">Country</span><div style="flex-grow: 1;"></div><span class="n mono">3 / 195</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">United States</span><span class="n mono">12/51</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">India</span><span class="n mono">8/36</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">United Kingdom</span><span class="n mono">all</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Australia</span><span class="n mono">8</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Brazil</span><span class="n mono">27</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Canada</span><span class="n mono">13</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">France</span><span class="n mono">18</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Germany</span><span class="n mono">16</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Japan</span><span class="n mono">47</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Mexico</span><span class="n mono">32</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Netherlands</span><span class="n mono">12</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Spain</span><span class="n mono">19</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">United Arab Emirates</span><span class="n mono">7</span></div>
+    </div>
+
+    <div class="pane" style="width: 248px;">
+      <div class="ph"><span class="k">State</span><span class="n">United States</span><div style="flex-grow: 1;"></div><span class="n mono">12 / 51</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">California</span><span class="n mono">5/25</span></div>
+      <div class="r cur"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">Texas</span><span class="mono" style="font-size: 11px; color: oklch(0.870 0.190 122);">6/25</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">Florida</span><span class="n mono">4/25</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">New York</span><span class="n mono">3/25</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">Illinois</span><span class="n mono">4/25</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">Georgia</span><span class="n mono">4/25</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Alabama</span><span class="n mono">25</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Alaska</span><span class="n mono">6</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Arizona</span><span class="n mono">25</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Arkansas</span><span class="n mono">21</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Colorado</span><span class="n mono">25</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Connecticut</span><span class="n mono">19</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Delaware</span><span class="n mono">5</span></div>
+    </div>
+
+    <div class="pane" style="width: 248px;">
+      <div class="ph"><span class="k">City</span><span class="n">Texas</span><div style="flex-grow: 1;"></div><span class="n mono">6 / 25</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">Houston</span><span class="n mono">2.3M</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">San Antonio</span><span class="n mono">1.5M</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">Dallas</span><span class="n mono">1.3M</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">Austin</span><span class="n mono">964k</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">Fort Worth</span><span class="n mono">925k</span></div>
+      <div class="r on"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nm">El Paso</span><span class="n mono">679k</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Arlington</span><span class="n mono">394k</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Corpus Christi</span><span class="n mono">318k</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Plano</span><span class="n mono">288k</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Lubbock</span><span class="n mono">257k</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Irving</span><span class="n mono">257k</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Laredo</span><span class="n mono">255k</span></div>
+      <div class="r"><span class="tick"></span><span class="nm">Garland</span><span class="n mono">246k</span></div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+      <div class="ph"><span class="k">Selected</span><div style="flex-grow: 1;"></div><span class="n">Clear</span></div>
+      <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 15px;">
+
+        <div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <span class="u" style="font-size: 12px; font-weight: 500;">United States</span>
+            <div style="flex-grow: 1;"></div>
+            <span class="mono n">47 cities</span>
+          </div>
+          <div style="display: flex; gap: 3px; margin-top: 8px;">
+            <span style="flex-grow: 6; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122);"></span>
+            <span style="flex-grow: 5; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122);"></span>
+            <span style="flex-grow: 4; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122 / 0.8);"></span>
+            <span style="flex-grow: 4; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122 / 0.8);"></span>
+            <span style="flex-grow: 4; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122 / 0.8);"></span>
+            <span style="flex-grow: 24; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122 / 0.20);"></span>
+          </div>
+          <div class="n" style="margin-top: 7px;">Texas 6 &middot; California 5 &middot; +10 more</div>
+        </div>
+
+        <div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <span class="u" style="font-size: 12px; font-weight: 500;">India</span>
+            <div style="flex-grow: 1;"></div>
+            <span class="mono n">31 cities</span>
+          </div>
+          <div style="display: flex; gap: 3px; margin-top: 8px;">
+            <span style="flex-grow: 5; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122);"></span>
+            <span style="flex-grow: 4; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122 / 0.8);"></span>
+            <span style="flex-grow: 3; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122 / 0.8);"></span>
+            <span style="flex-grow: 19; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122 / 0.20);"></span>
+          </div>
+          <div class="n" style="margin-top: 7px;">Maharashtra 5 &middot; Karnataka 4 &middot; +6 more</div>
+        </div>
+
+        <div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <span class="u" style="font-size: 12px; font-weight: 500;">United Kingdom</span>
+            <div style="flex-grow: 1;"></div>
+            <span class="mono n">whole country</span>
+          </div>
+          <div style="display: flex; gap: 3px; margin-top: 8px;">
+            <span style="flex-grow: 1; height: 5px; border-radius: 3px; background: oklch(0.870 0.190 122 / 0.45);"></span>
+          </div>
+          <div class="n" style="margin-top: 7px;">One search per term, no city breakdown</div>
+        </div>
+
+        <div style="border-top: 1px solid oklch(0.238 0.008 250); padding-top: 13px;" class="n" style="line-height: 1.5;">
+          An empty level means all of it. No cities picked searches the whole state.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height: 66px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 16px; margin-top: 14px; border-top: 1px solid oklch(0.222 0.008 250);">
+    <div style="display: flex; align-items: baseline; gap: 9px;">
+      <span class="u" style="font-size: 21px; font-weight: 600; letter-spacing: -0.01em;">316</span>
+      <span class="k">searches</span>
+      <span class="u" style="font-size: 21px; font-weight: 600; letter-spacing: -0.01em; color: oklch(0.870 0.190 122); margin-left: 10px;">7h</span>
+      <span class="k">estimated</span>
+    </div>
+    <div style="width: 1px; height: 22px; background: oklch(0.275 0.009 250);"></div>
+    <span class="n" style="font-size: 12px;">4 terms &times; 79 places &middot; up to 6,320 leads</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 7px;">
+      <span class="kbd">&#8629;</span><span class="n">toggle</span>
+      <span class="kbd" style="margin-left: 10px;">&#8984;</span><span class="kbd">A</span><span class="n">select all</span>
+    </div>
+    <div class="u" style="height: 36px; padding: 0 22px; border-radius: 9px; background: oklch(0.870 0.190 122); color: oklch(0.190 0.050 122); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; display: inline-flex; align-items: center; gap: 10px;">
+      Done <span class="kbd" style="background: oklch(0.190 0.050 122 / 0.20); color: oklch(0.250 0.060 122);">&#8984;&#8629;</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

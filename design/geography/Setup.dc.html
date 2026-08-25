@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    * { box-sizing: border-box; }
+    a { color: oklch(0.870 0.190 122); } a:hover { color: oklch(0.780 0.190 122); }
+    .app { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 13px;
+           color: oklch(0.962 0.003 250); -webkit-font-smoothing: antialiased; }
+    .u { font-family: "Unbounded", "Segoe UI", system-ui, sans-serif; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font-variant-numeric: tabular-nums; }
+    .k { font-family: "Unbounded", "Segoe UI", system-ui, sans-serif; font-size: 9px;
+         font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase;
+         color: oklch(0.540 0.010 250); }
+    .n { font-size: 11px; color: oklch(0.540 0.010 250); }
+    .btn { height: 30px; padding: 0 14px; border-radius: 8px;
+           border: 1px solid oklch(0.275 0.009 250); background: oklch(0.192 0.007 250);
+           font-size: 13px; color: oklch(0.900 0.005 250); display: inline-flex;
+           align-items: center; gap: 8px; }
+    .box { border: 1px solid oklch(0.275 0.009 250); background: oklch(0.178 0.007 250);
+           border-radius: 11px; height: 148px; display: flex; flex-direction: column;
+           overflow: hidden; }
+    .tick { width: 15px; height: 15px; border-radius: 4px; flex-shrink: 0;
+            border: 1px solid oklch(0.350 0.010 250); display: inline-flex;
+            align-items: center; justify-content: center; }
+    .tick.on { background: oklch(0.870 0.190 122); border-color: oklch(0.870 0.190 122); }
+    .cell { height: 46px; border-radius: 7px; border: 1px solid oklch(0.262 0.008 250);
+            background: oklch(0.196 0.007 250); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 5px; }
+    .cell b { font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+              color: oklch(0.620 0.010 250); font-family: "Unbounded", system-ui, sans-serif; }
+    .segs { display: flex; gap: 2px; }
+    .seg { width: 7px; height: 3px; border-radius: 1px; background: oklch(0.300 0.008 250); }
+  </style>
+</helmet>
+
+<div class="app" style="width: 1100px; height: 740px; background: oklch(0.155 0.006 250); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 38px; flex-shrink: 0; display: flex; align-items: center; padding: 0 13px; gap: 8px; border-bottom: 1px solid oklch(0.222 0.008 250);">
+    <div style="display: flex; gap: 8px;">
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.60 0.14 25);"></div>
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.68 0.11 85);"></div>
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.64 0.12 145);"></div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div class="u" style="font-size: 11px; font-weight: 600; letter-spacing: 0.19em; text-transform: uppercase; color: oklch(0.700 0.010 250);">Wkey<span style="color: oklch(0.870 0.190 122);">&middot;</span>Lead Scraper</div>
+    <div style="flex-grow: 1;"></div>
+    <div class="mono n">idle</div>
+  </div>
+
+  <div style="height: 62px; flex-shrink: 0; display: flex; align-items: center; padding: 0 16px; gap: 10px; border-bottom: 1px solid oklch(0.222 0.008 250);">
+    <div class="u" style="height: 36px; padding: 0 20px; border-radius: 9px; background: oklch(0.870 0.190 122); color: oklch(0.190 0.050 122); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; display: inline-flex; align-items: center; gap: 9px;">
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 2l7 4-7 4V2z" fill="currentColor"/></svg>
+      Start scrape
+    </div>
+    <div class="btn">Open output folder</div>
+    <div style="flex-grow: 1;"></div>
+    <span class="k">Saving to</span>
+    <div class="mono" style="height: 30px; border: 1px solid oklch(0.275 0.009 250); background: oklch(0.192 0.007 250); border-radius: 8px; display: flex; align-items: center; gap: 9px; padding: 0 12px; font-size: 12px; color: oklch(0.700 0.010 250);">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="oklch(0.540 0.010 250)" stroke-width="1.2"/><path d="M5 8h6M5 11h6" stroke="oklch(0.540 0.010 250)" stroke-width="1.2"/></svg>
+      Documents/Wkey Lead Scraper/results.csv
+    </div>
+  </div>
+
+  <div style="flex-shrink: 0; display: flex; gap: 14px; padding: 16px 16px 13px;">
+
+    <div style="width: 292px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="k">Search terms</div>
+      <div class="box">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: oklch(0.870 0.190 122 / 0.10); box-shadow: inset 2px 0 0 oklch(0.870 0.190 122);">
+          <span style="flex-grow: 1;">dental clinic</span><span class="mono n">79</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 7px 12px;"><span style="flex-grow: 1;">gym</span><span class="mono n">79</span></div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 7px 12px;"><span style="flex-grow: 1;">law firm</span><span class="mono n">79</span></div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 7px 12px;"><span style="flex-grow: 1;">restaurant</span><span class="mono n">79</span></div>
+        <div style="flex-grow: 1;"></div>
+        <div style="border-top: 1px solid oklch(0.238 0.008 250); display: flex; gap: 7px; padding: 8px 9px;">
+          <div class="btn" style="height: 25px; padding: 0 11px; font-size: 12px;">Add term</div>
+          <div class="btn" style="height: 25px; padding: 0 11px; font-size: 12px; color: oklch(0.620 0.010 250);">Remove</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width: 292px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="k">Locations</div>
+      <div class="box">
+        <div style="display: flex; align-items: baseline; gap: 8px; padding: 9px 12px 5px;"><span style="flex-grow: 1;">United States</span><span class="mono n">12 states &middot; 47 cities</span></div>
+        <div style="display: flex; align-items: baseline; gap: 8px; padding: 5px 12px;"><span style="flex-grow: 1;">India</span><span class="mono n">8 states &middot; 31 cities</span></div>
+        <div style="display: flex; align-items: baseline; gap: 8px; padding: 5px 12px;"><span style="flex-grow: 1;">United Kingdom</span><span class="mono n">whole country</span></div>
+        <div style="flex-grow: 1;"></div>
+        <div style="border-top: 1px solid oklch(0.238 0.008 250); display: flex; align-items: center; gap: 9px; padding: 8px 9px;">
+          <div class="btn" style="height: 25px; padding: 0 11px; font-size: 12px; border-color: oklch(0.870 0.190 122 / 0.42); color: oklch(0.870 0.150 122);">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 6h9M6 1.5c1.6 1.7 1.6 7.3 0 9M6 1.5c-1.6 1.7-1.6 7.3 0 9" stroke="currentColor" stroke-width="1.1"/></svg>
+            Choose locations
+          </div>
+          <span class="n">79 places</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 8px;">
+      <div class="k">Options</div>
+      <div class="box" style="padding: 14px 16px; gap: 11px; justify-content: flex-start;">
+        <div style="display: flex; align-items: center; gap: 10px;"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Look up contact details on business websites</span></div>
+        <div style="display: flex; align-items: center; gap: 10px;"><span class="tick"></span><span style="color: oklch(0.790 0.008 250);">Show the browser while it works</span></div>
+        <div style="display: flex; align-items: center; gap: 10px;"><span class="tick"></span><span style="color: oklch(0.790 0.008 250);">Re-scrape places already finished</span></div>
+        <div style="display: flex; align-items: center; gap: 10px;"><span class="tick on"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.6 5.2l2.2 2.2 4.6-4.8" stroke="oklch(0.190 0.050 122)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Stop after
+          <span class="mono" style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 22px; border: 1px solid oklch(0.300 0.008 250); border-radius: 6px; background: oklch(0.155 0.006 250); font-size: 12px; margin: 0 4px;">20</span>
+          per city</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-shrink: 0; margin: 0 16px; border: 1px solid oklch(0.275 0.009 250); background: oklch(0.178 0.007 250); border-radius: 11px; display: flex; align-items: center; gap: 14px; padding: 13px 16px;">
+    <div style="display: flex; align-items: baseline; gap: 9px;">
+      <span class="u" style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">316</span>
+      <span class="k">searches</span>
+      <span class="u" style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: oklch(0.870 0.190 122); margin-left: 10px;">7h</span>
+      <span class="k">estimated</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: oklch(0.275 0.009 250);"></div>
+    <span class="n" style="font-size: 12px;">4 search terms &times; 79 places, capped at 20 businesses each &middot; up to 6,320 leads</span>
+    <div style="flex-grow: 1;"></div>
+    <span class="n" style="font-size: 12px;">Progress is saved as it goes</span>
+  </div>
+
+  <div style="flex-grow: 1; padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 9px; min-height: 0;">
+    <div style="display: flex; align-items: baseline; gap: 12px;">
+      <div class="k">Coverage &mdash; nothing started</div>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; align-items: center; gap: 15px;" class="n">
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: oklch(0.870 0.190 122);"></span>finished</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: oklch(0.800 0.150 75);"></span>partly done</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: oklch(0.680 0.185 25);"></span>failed</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: oklch(0.300 0.008 250);"></span>not started</span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px;"><span class="k" style="color: oklch(0.700 0.010 250);">United States</span><span style="flex-grow: 1; height: 1px; background: oklch(0.238 0.008 250);"></span></div>
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px;">
+      <div class="cell"><b>CA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>TX</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>FL</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NY</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>IL</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>PA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>OH</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>GA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NC</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>MI</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>NJ</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; margin-top: 3px;"><span class="k" style="color: oklch(0.700 0.010 250);">India</span><span style="flex-grow: 1; height: 1px; background: oklch(0.238 0.008 250);"></span></div>
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px;">
+      <div class="cell"><b>MH</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>KA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>DL</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>TN</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>TG</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>GJ</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WB</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>UP</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell" style="grid-column: span 4; border-style: dashed; background: transparent;"><b style="letter-spacing: 0; font-weight: 400;">United Kingdom &middot; whole country</b></div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

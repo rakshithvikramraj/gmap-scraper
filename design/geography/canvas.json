@@ -1,0 +1,53 @@
+{
+  "artboards": [
+    { "file": "Setup.dc.html", "x": 0, "y": 0, "w": 1100, "h": 740, "title": "1 · Set up a run" },
+    { "file": "Main.dc.html", "x": 1180, "y": 0, "w": 1100, "h": 740, "title": "2 · Choose locations" },
+    { "file": "Coverage.dc.html", "x": 0, "y": 900, "w": 1100, "h": 740, "title": "3 · While it runs" },
+    { "file": "CoverageLarge.dc.html", "x": 1180, "y": 900, "w": 1100, "h": 740, "title": "4 · A very large selection" }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -250,
+      "w": 560,
+      "text": "Console direction, built out.\n\nNear-black canvas, lime accent, Unbounded for display type, hairline borders, no shadows. All four screens show one run: 4 search terms across 79 places in 3 countries.\n\nThe app is stared at for hours while a job runs, which is what the dark, dense treatment is for."
+    },
+    {
+      "id": "type-note",
+      "x": 620,
+      "y": -250,
+      "w": 500,
+      "text": "Unbounded is used as a display face, not everywhere.\n\nIt carries the wordmark, the small tracked labels, the big numbers and the buttons. The dense list rows stay in the system sans, because Unbounded's wide geometric letterforms get hard to read at 13px in a tight list — the rows are where you actually hunt for a city.\n\nWorth knowing: Tk cannot load a web font. Shipping Unbounded means bundling the .ttf and registering it at startup — ATSApplicationFontsPath on macOS, AddFontResourceExW on Windows. Both work, both are real work, and it needs a fallback when registration fails."
+    },
+    {
+      "id": "lime-note",
+      "x": 1180,
+      "y": -250,
+      "w": 500,
+      "text": "Lime does double duty, deliberately.\n\nIt is the accent AND the 'finished' status. That reads well — a completed state lights up in the brand colour — and the two never collide, because the selector has no statuses and the coverage grid has no selection.\n\nIt does mean the status palette shifts: amber for partly done, coral for failed, and grey for not started. Green is gone, since it would sit too close to lime to tell apart at cell size."
+    },
+    {
+      "id": "coverage-note",
+      "x": 0,
+      "y": 1690,
+      "w": 560,
+      "text": "Coverage shows what you selected, grouped by country — not a fixed 50 cells.\n\nEach cell keeps one segment per search term, so a state half done looks half done. The lime-outlined cell is where the scraper is working right now. A whole-country entry is one wide dashed cell, because that genuinely is one search per term."
+    },
+    {
+      "id": "large-note",
+      "x": 1180,
+      "y": 1690,
+      "w": 540,
+      "text": "Past about 60 states the grid is replaced rather than shrunk.\n\nIt answers the same questions without pretending 210 four-character cells are scannable: how far along, where the failures are, which country is lagging.\n\nSelecting seven countries reaches this easily — this is a normal state, not an edge case."
+    },
+    {
+      "id": "check",
+      "x": 1760,
+      "y": 1690,
+      "w": 520,
+      "text": "Worth your eye:\n\n— The three panes are drawn rows, not ttk widgets. Tk has no native checkbox list, so selection lives in the app rather than in the widget. We already draw custom widgets on a Canvas, so the technique is proven.\n\n— City population is shown because it is the ranking reason: cities are the top 25 per state by population.\n\n— The estimate uses the scraper's real pacing constants, not a number typed into the mockup."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

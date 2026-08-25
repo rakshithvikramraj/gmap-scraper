@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    * { box-sizing: border-box; }
+    a { color: oklch(0.870 0.190 122); } a:hover { color: oklch(0.780 0.190 122); }
+    .app { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 13px;
+           color: oklch(0.962 0.003 250); -webkit-font-smoothing: antialiased; }
+    .u { font-family: "Unbounded", "Segoe UI", system-ui, sans-serif; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font-variant-numeric: tabular-nums; }
+    .k { font-family: "Unbounded", "Segoe UI", system-ui, sans-serif; font-size: 9px;
+         font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase;
+         color: oklch(0.540 0.010 250); }
+    .n { font-size: 11px; color: oklch(0.540 0.010 250); }
+    .btn { height: 30px; padding: 0 14px; border-radius: 8px;
+           border: 1px solid oklch(0.275 0.009 250); background: oklch(0.192 0.007 250);
+           font-size: 13px; color: oklch(0.900 0.005 250); display: inline-flex;
+           align-items: center; gap: 8px; }
+    .cell { height: 44px; border-radius: 7px; border: 1px solid oklch(0.262 0.008 250);
+            background: oklch(0.196 0.007 250); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 5px; }
+    .cell b { font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+              color: oklch(0.620 0.010 250); font-family: "Unbounded", system-ui, sans-serif; }
+    .segs { display: flex; gap: 2px; }
+    .seg { width: 7px; height: 3px; border-radius: 1px; background: oklch(0.300 0.008 250); }
+    .d { background: oklch(0.870 0.190 122); }
+    .p { background: oklch(0.800 0.150 75); }
+    .f { background: oklch(0.680 0.185 25); }
+    .c-d { background: oklch(0.870 0.190 122 / 0.11); border-color: oklch(0.870 0.190 122 / 0.34); }
+    .c-d b { color: oklch(0.870 0.130 122); }
+    .c-p { background: oklch(0.800 0.150 75 / 0.11); border-color: oklch(0.800 0.150 75 / 0.36); }
+    .c-p b { color: oklch(0.800 0.110 75); }
+    .c-f { background: oklch(0.680 0.185 25 / 0.12); border-color: oklch(0.680 0.185 25 / 0.40); }
+    .c-f b { color: oklch(0.740 0.140 25); }
+    .c-c { border-color: oklch(0.870 0.190 122); border-width: 2px; background: oklch(0.870 0.190 122 / 0.16); }
+    .c-c b { color: oklch(0.900 0.150 122); }
+    .logline { display: flex; gap: 12px; padding: 1.5px 0; }
+    .logtime { color: oklch(0.440 0.010 250); flex-shrink: 0; }
+  </style>
+</helmet>
+
+<div class="app" style="width: 1100px; height: 740px; background: oklch(0.155 0.006 250); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 38px; flex-shrink: 0; display: flex; align-items: center; padding: 0 13px; gap: 8px; border-bottom: 1px solid oklch(0.222 0.008 250);">
+    <div style="display: flex; gap: 8px;">
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.60 0.14 25);"></div>
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.68 0.11 85);"></div>
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.64 0.12 145);"></div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div class="u" style="font-size: 11px; font-weight: 600; letter-spacing: 0.19em; text-transform: uppercase; color: oklch(0.700 0.010 250);">Wkey<span style="color: oklch(0.870 0.190 122);">&middot;</span>Lead Scraper</div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 7px;">
+      <span style="width: 7px; height: 7px; border-radius: 50%; background: oklch(0.870 0.190 122);"></span>
+      <span class="mono n" style="color: oklch(0.870 0.130 122);">running</span>
+    </div>
+  </div>
+
+  <div style="height: 62px; flex-shrink: 0; display: flex; align-items: center; padding: 0 16px; gap: 10px; border-bottom: 1px solid oklch(0.222 0.008 250);">
+    <div class="btn" style="height: 36px; padding: 0 20px;">
+      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.5" fill="oklch(0.760 0.008 250)"/></svg>
+      Stop
+    </div>
+    <div class="btn">Open output folder</div>
+    <div style="flex-grow: 1;"></div>
+    <span class="k">Saving to</span>
+    <div class="mono" style="height: 30px; border: 1px solid oklch(0.275 0.009 250); background: oklch(0.192 0.007 250); border-radius: 8px; display: flex; align-items: center; padding: 0 12px; font-size: 12px; color: oklch(0.700 0.010 250);">Documents/Wkey Lead Scraper/results.csv</div>
+  </div>
+
+  <div style="flex-shrink: 0; padding: 17px 16px 0;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <div class="u" style="font-size: 17px; font-weight: 500; letter-spacing: -0.005em;">dental clinic <span style="color: oklch(0.540 0.010 250); font-weight: 300;">in</span> Austin, Texas</div>
+      <div class="n">Stage 1 of 2 &middot; collecting listings</div>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; align-items: baseline; gap: 8px;">
+        <span class="u" style="font-size: 20px; font-weight: 600; color: oklch(0.870 0.190 122);">37%</span>
+      </div>
+    </div>
+    <div style="height: 6px; border-radius: 3px; background: oklch(0.238 0.008 250); margin: 12px 0 10px; overflow: hidden;">
+      <div style="width: 37.3%; height: 100%; background: oklch(0.870 0.190 122);"></div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div class="mono" style="font-size: 12px; color: oklch(0.700 0.010 250);">118 / 316 searches</div>
+      <span class="n">&middot;</span>
+      <div class="mono" style="font-size: 12px; color: oklch(0.700 0.010 250);">2,140 businesses saved</div>
+      <span class="n">&middot;</span>
+      <div class="mono" style="font-size: 12px; color: oklch(0.700 0.010 250);">1h 52m elapsed, ~5h left</div>
+      <div style="flex-grow: 1;"></div>
+      <div class="n" style="font-size: 12px;">Close the window whenever &mdash; it resumes</div>
+    </div>
+  </div>
+
+  <div style="flex-shrink: 0; padding: 18px 16px 0; display: flex; flex-direction: column; gap: 9px;">
+    <div style="display: flex; align-items: baseline; gap: 12px;">
+      <div class="k">Coverage &mdash; 11 of 30 states finished</div>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; align-items: center; gap: 15px;" class="n">
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: oklch(0.870 0.190 122);"></span>finished</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: oklch(0.800 0.150 75);"></span>partly done</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: oklch(0.680 0.185 25);"></span>failed</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: oklch(0.300 0.008 250);"></span>not started</span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px;"><span class="k" style="color: oklch(0.700 0.010 250);">United States</span><span class="mono n">7 / 12</span><span style="flex-grow: 1; height: 1px; background: oklch(0.238 0.008 250);"></span></div>
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px;">
+      <div class="cell c-d"><b>CA</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-c"><b>TX</b><div class="segs"><span class="seg d"></span><span class="seg p"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>FL</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-d"><b>NY</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-d"><b>IL</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-p"><b>PA</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg p"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>OH</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-d"><b>GA</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-f"><b>NC</b><div class="segs"><span class="seg d"></span><span class="seg f"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell c-d"><b>MI</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell"><b>NJ</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WA</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; margin-top: 3px;"><span class="k" style="color: oklch(0.700 0.010 250);">India</span><span class="mono n">4 / 8</span><span style="flex-grow: 1; height: 1px; background: oklch(0.238 0.008 250);"></span></div>
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px;">
+      <div class="cell c-d"><b>MH</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-d"><b>KA</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-d"><b>DL</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-d"><b>TN</b><div class="segs"><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span><span class="seg d"></span></div></div>
+      <div class="cell c-p"><b>TG</b><div class="segs"><span class="seg d"></span><span class="seg p"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>GJ</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>WB</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell"><b>UP</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="cell" style="grid-column: span 4; border-style: dashed; background: transparent;"><b style="letter-spacing: 0; font-weight: 400;">United Kingdom &middot; whole country</b><div class="segs"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; padding: 16px 16px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 0;">
+    <div class="k">Activity</div>
+    <div class="mono" style="flex-grow: 1; border: 1px solid oklch(0.262 0.008 250); background: oklch(0.178 0.007 250); border-radius: 9px; padding: 10px 14px; font-size: 12px; color: oklch(0.700 0.010 250); overflow: hidden; line-height: 1.65;">
+      <div class="logline"><span class="logtime">14:22:08</span><span>dental clinic &middot; Austin, Texas &mdash; <span style="color: oklch(0.870 0.130 122);">20 of 20 saved</span>, cap reached</span></div>
+      <div class="logline"><span class="logtime">14:20:41</span><span>dental clinic &middot; Fort Worth, Texas &mdash; 14 saved</span></div>
+      <div class="logline"><span class="logtime">14:18:02</span><span>dental clinic &middot; El Paso, Texas &mdash; <span style="color: oklch(0.870 0.130 122);">20 of 20 saved</span>, cap reached</span></div>
+      <div class="logline"><span class="logtime">14:15:30</span><span>gym &middot; Charlotte, North Carolina &mdash; <span style="color: oklch(0.740 0.140 25);">failed after 3 attempts</span>, will retry on resume</span></div>
+      <div class="logline"><span class="logtime">14:13:55</span><span>gym &middot; Raleigh, North Carolina &mdash; <span style="color: oklch(0.870 0.130 122);">20 of 20 saved</span>, cap reached</span></div>
+      <div class="logline"><span class="logtime">14:11:12</span><span>restaurant &middot; Chennai, Tamil Nadu &mdash; <span style="color: oklch(0.870 0.130 122);">20 of 20 saved</span>, cap reached</span></div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -280,6 +280,43 @@ Landing 1 first means the risky part — a shared key that `scrape.py`,
 `runstate.py` and `app.py` all read — is proven by the CLI and the test suite
 before any UI depends on it.
 
+## Visual direction
+
+Settled by mockup, not by prose: `design/geography/` holds the four screens
+(`Main` the selector, `Setup`, `Coverage`, `CoverageLarge`), seeded into a
+canvas with `seed-canvas.mjs`.
+
+The direction is **Console** — near-black canvas, a single lime accent,
+hairline borders, no shadows, tabular numerals. It replaces the light
+`PALETTE` in `widgets.py`, so this is a whole-app change: a half-dark app
+looks broken.
+
+**Lime doubles as the "finished" status.** The two never collide — the
+selector has no statuses, the coverage grid has no selection — and a
+completed state lighting up in the accent reads correctly. The consequence is
+that green leaves the status palette entirely: at cell size it is too close to
+lime to distinguish. Partly-done becomes amber, failed becomes coral.
+
+**Unbounded is the display face, not the body face.** It carries the
+wordmark, the tracked uppercase labels, the large numerals and the buttons.
+Dense list rows stay in the system sans — Unbounded's wide geometric
+letterforms are hard to read at 13px in a tight list, and those rows are where
+an operator hunts for a city.
+
+**Shipping Unbounded is a real task with a real failure mode.** Tk resolves
+only fonts the OS has installed; it cannot load a web font. The `.ttf` must
+ship inside the app and be registered at startup:
+
+| Platform | Mechanism |
+|---|---|
+| macOS | `ATSApplicationFontsPath` in the bundle's `Info.plist`, fonts under `Contents/Resources/Fonts` |
+| Windows | `AddFontResourceExW` via `ctypes`, with `FR_PRIVATE` |
+
+Registration can fail, and `tkfont.Font(family=...)` silently substitutes when
+a family is missing rather than raising. So the font layer must resolve the
+family it actually got and fall back to the existing `UI_FACES` chain, the way
+`resolve_face()` already does — never assume the registration worked.
+
 ## Consequences
 
 - `geodata.py` is a large committed generated file. Diffs on refresh will be
