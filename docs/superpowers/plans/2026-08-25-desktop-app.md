@@ -2116,7 +2116,13 @@ Replace `def on_start(self): pass` with:
 
 ```python
     def on_start(self):
-        if self.worker and self.worker.is_alive():
+        # `self.worker` is set here and cleared only in `_finish`, so "not None"
+        # means "started and not yet reaped". Guarding on is_alive() instead
+        # leaves a ~100ms window after a run finishes naturally — the thread is
+        # dead, `_finish` has not run yet, and the button still reads "Stop" —
+        # in which a click starts a second worker that the stale `_finish` then
+        # orphans by unsubscribing the GUI and nulling this reference.
+        if self.worker is not None:
             return self.on_stop()
 
         prefs = self.current_prefs()
