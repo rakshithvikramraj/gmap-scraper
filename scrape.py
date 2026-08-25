@@ -755,6 +755,13 @@ BLOCK_MARKERS = ("unusual traffic", "not a robot", "/sorry/", "recaptcha")
 
 PAUSE_LISTING = (1.0, 3.0)
 PAUSE_QUERY = (5.0, 10.0)
+# Page load plus extraction for one listing, on top of PAUSE_LISTING. Feeds
+# the run-cost estimate only; nothing paces off it.
+LISTING_OVERHEAD = 1.5
+# What to assume an uncapped query returns. Google caps a search at about 120
+# results but a typical one returns far fewer, and an estimate has to pick a
+# number. The UI says "at least" when it uses this rather than a real cap.
+UNCAPPED_ASSUMPTION = 40
 SCROLL_ROUNDS = 40
 STAGNANT_LIMIT = 3
 CONSECUTIVE_FAILURE_LIMIT = 3
