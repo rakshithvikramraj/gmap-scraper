@@ -20,6 +20,16 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
 
+# uv's default preference falls back to a system Python before it downloads a
+# managed one, and a runner's system Python is not an interpreter this project
+# supports: Ubuntu ships tkinter as a separate python3-tk package, so `import
+# widgets` dies at collection with ModuleNotFoundError. uv's standalone builds
+# bundle Tcl/Tk on all three platforms - which is the interpreter app.py's
+# _ensure_tcl_paths() is written against, and the one every developer gets
+# locally. Pin CI to it so the tests and the shipped app agree.
+env:
+  UV_PYTHON_PREFERENCE: only-managed
+
 jobs:
   test:
     name: Tests
