@@ -2071,7 +2071,38 @@ git commit -m "feat: running, results and interrupted panels"
 
 This is the only task where threads matter. Two rules, and every bug in this task will be a violation of one of them: **the worker never touches a widget**, and **the main thread never blocks**.
 
-- [ ] **Step 1: Add the imports**
+- [ ] **Step 1: Point Tk at its own libraries**
+
+This is a real blocker, confirmed on this machine: `uv`'s standalone CPython ships Tcl/Tk but does not point at it, so `import tkinter` raises *"Tcl wasn't installed properly"* on any launch that does not already carry `TCL_LIBRARY` and `TK_LIBRARY`. Because Task 10's setup scripts install Python through `uv`, **every teammate will hit this**, and `uv run python app.py` fails today.
+
+Fix it inside `app.py` so it holds however the app is launched. Put this after the stdlib imports and **before** `import tkinter`:
+
+```python
+def _ensure_tcl_paths() -> None:
+    """Point Tk at the Tcl/Tk that ships with this interpreter.
+
+    uv's standalone CPython bundles Tcl/Tk but sets neither TCL_LIBRARY nor
+    TK_LIBRARY, so tkinter reports "Tcl wasn't installed properly" on a launch
+    that does not already carry them. Deriving the paths from sys.base_prefix
+    keeps this portable: every uv-installed Python lays them out the same way,
+    and an environment that already sets them is left alone.
+    """
+    lib = Path(sys.base_prefix) / "lib"
+    for variable, folder in (("TCL_LIBRARY", "tcl8.6"), ("TK_LIBRARY", "tk8.6")):
+        if not os.environ.get(variable):
+            candidate = lib / folder
+            if candidate.is_dir():
+                os.environ[variable] = str(candidate)
+
+
+_ensure_tcl_paths()
+```
+
+`os`, `sys` and `Path` must be imported above it. The `tkinter` imports then follow the call — the one place in this project where an import is deliberately not at the top of the file. Add `# noqa: E402` and a one-line comment saying why, so nobody tidies it back and breaks every launch.
+
+Verify: `uv run python app.py` must open the window. Before this fix it does not.
+
+- [ ] **Step 2: Add the imports**
 
 `import time` is already there from Task 8. Change the tkinter import line to also bring in `messagebox`:
 
@@ -2079,7 +2110,7 @@ This is the only task where threads matter. Two rules, and every bug in this tas
 from tkinter import messagebox, ttk
 ```
 
-- [ ] **Step 2: Replace the `on_start` stub with the full wiring**
+- [ ] **Step 3: Replace the `on_start` stub with the full wiring**
 
 Replace `def on_start(self): pass` with:
 
@@ -2208,7 +2239,7 @@ The events are drained in a batch and the window repaints **once** per tick. Rep
 
 `_pump` reschedules itself only while the worker lives or the queue still holds something, so an idle window costs nothing.
 
-- [ ] **Step 3: Wire the close handler**
+- [ ] **Step 4: Wire the close handler**
 
 In `__init__`, after `self.show("setup")`, add:
 
@@ -2216,12 +2247,12 @@ In `__init__`, after `self.show("setup")`, add:
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 ```
 
-- [ ] **Step 6: Check the suite still passes**
+- [ ] **Step 5: Check the suite still passes**
 
 Run: `pytest -v`
 Expected: **123 passed**
 
-- [ ] **Step 5: Run a real short scrape**
+- [ ] **Step 6: Run a real short scrape**
 
 Temporarily set the limit so this takes a minute rather than hours: in `current_prefs`, change `"limit": self.prefs.get("limit")` to `"limit": 2`, and start the app with only one term and one state by editing `data/settings.json` or removing terms in the UI.
 
@@ -2235,21 +2266,21 @@ Expected:
 - At the end the results panel appears with the table and the health meters populated.
 - `data/results.csv` exists and holds the scraped clubs.
 
-- [ ] **Step 6: Test stopping mid-run**
+- [ ] **Step 7: Test stopping mid-run**
 
 Start another run and press Stop while it is working.
 
 Expected: the button reads "Stopping…", the run halts within a few seconds (one listing's pacing), the results panel appears with whatever was found, and `data/cache.jsonl` holds those clubs. Press Start again: it resumes rather than restarting.
 
-- [ ] **Step 7: Test closing mid-run**
+- [ ] **Step 8: Test closing mid-run**
 
 Start a run and close the window. Expected: a confirmation dialog; cancelling keeps running, confirming stops and closes without a traceback in the terminal.
 
-- [ ] **Step 8: Restore the limit**
+- [ ] **Step 9: Restore the limit**
 
 Change `"limit": 2` back to `"limit": self.prefs.get("limit")`. Confirm with `git diff` that no test-only edit remains.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add app.py
