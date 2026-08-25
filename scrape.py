@@ -17,6 +17,7 @@ from urllib.parse import quote_plus, unquote, urljoin, urlparse
 import google.auth
 import gspread
 import httpx
+import phonenumbers
 from bs4 import BeautifulSoup
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
 from gspread.utils import rowcol_to_a1
@@ -193,22 +194,43 @@ OWNER_WINDOW = 120
 MAX_NAME_TOKENS = 3
 
 
-def normalize_phone(raw: str) -> str:
-    """US phone number as +1XXXXXXXXXX, or "" if it is not one."""
-    digits = re.sub(r"\D", "", raw)
-    if len(digits) == 11 and digits.startswith("1"):
-        digits = digits[1:]
-    if len(digits) != 10:
+def normalize_phone(text: str, region: str = "US") -> str:
+    """`text` as an E.164 number, or "" if it is not a real number there.
+
+    Validation, not pattern matching. The regex this replaced turned a
+    product code into +14567890123, because thirteen digits look like a phone
+    number to a pattern and like nothing at all to a validator.
+
+    `region` decides what a number without a + prefix means; a number that
+    carries its own country code ignores it.
+    """
+    try:
+        parsed = phonenumbers.parse(text, region or "US")
+    except phonenumbers.NumberParseException:
         return ""
-    return "+1" + digits
+    if not phonenumbers.is_valid_number(parsed):
+        return ""
+    return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 
 
-def extract_phones(text: str) -> list[str]:
-    """Normalized US phone numbers in `text`, deduplicated, in order."""
+def extract_phones(text: str, region: str = "US") -> list[str]:
+    """Valid phone numbers in `text`, E.164, deduplicated, in order.
+
+    PhoneNumberMatcher, not PHONE_RE. The regex is US-shaped and never
+    matched "022 2822 1234", so pairing it with an international validator
+    would report no phones at all for a business outside the US. The matcher
+    scans free text for any format valid in `region`, and rejects SKUs and
+    order numbers on its own.
+
+    PHONE_RE stays in the file - the owner-name proximity search still uses
+    it - but no longer feeds this function.
+    """
     seen: list[str] = []
-    for match in PHONE_RE.finditer(text):
-        number = normalize_phone(match.group(0))
-        if number and number not in seen:
+    for match in phonenumbers.PhoneNumberMatcher(text, region or "US"):
+        number = phonenumbers.format_number(
+            match.number, phonenumbers.PhoneNumberFormat.E164
+        )
+        if number not in seen:
             seen.append(number)
     return seen
 
@@ -450,12 +472,17 @@ def make_fetcher(timeout: float = 15.0):
     return fetch
 
 
-def enrich_website(url: str, fetch_fn, listing_phone: str = "") -> dict[str, str]:
+def enrich_website(
+    url: str, fetch_fn, listing_phone: str = "", region: str = "US"
+) -> dict[str, str]:
     """Contact details scraped from a club's own website.
 
     Fetches the homepage plus up to three contact-ish pages, then extracts
     emails, phones, an owner name/phone pair, and social links. Never raises:
     fetch failures land in the `enrich_error` field.
+
+    `region` is the ISO2 code phone validation falls back to for a number
+    without its own country code, e.g. "IN" for a search that targeted India.
     """
     result = empty_enrichment()
     if not url:
@@ -482,7 +509,7 @@ def enrich_website(url: str, fetch_fn, listing_phone: str = "") -> dict[str, str
     result["owner_name"] = owner_name
     result["owner_phone"] = owner_phone
     result["other_phones"] = "; ".join(
-        phone for phone in extract_phones(text)
+        phone for phone in extract_phones(text, region=region)
         if phone not in (owner_phone, listing_phone)
     )
     result.update(extract_socials(html))
@@ -1105,8 +1132,9 @@ def run_stage2(force: bool = False) -> None:
         if stop_requested():
             break
         try:
+            region = geo.country_code(record.get("search_country", "")).upper() or "US"
             enrichment = enrich_website(
-                record["website"], fetch, record.get("phone", "")
+                record["website"], fetch, record.get("phone", ""), region=region
             )
         except Exception as exc:
             enrichment = empty_enrichment()

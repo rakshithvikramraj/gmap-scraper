@@ -669,3 +669,54 @@ def test_new_columns_are_in_both_column_lists():
     for column in ("country", "search_country", "search_city"):
         assert column in scrape.COLUMNS
         assert column in scrape.STAGE1_COLUMNS
+
+
+def test_a_us_number_normalises_to_e164():
+    assert scrape.normalize_phone("(512) 555-0142") == "+15125550142"
+
+
+def test_an_indian_number_needs_its_region():
+    assert scrape.normalize_phone("022 2822 1234", region="IN") == "+912228221234"
+
+
+def test_the_same_digits_are_invalid_in_another_region():
+    # Region is not decoration: it decides validity.
+    assert scrape.normalize_phone("022 2822 1234", region="US") == ""
+
+
+def test_a_product_code_is_rejected():
+    # The regex predecessor manufactured +14567890123 out of a SKU. A
+    # validator rejects what a pattern would have accepted.
+    assert scrape.normalize_phone("SKU 1234567890123") == ""
+
+
+def test_a_too_short_run_of_digits_is_rejected():
+    assert scrape.normalize_phone("call 12345") == ""
+
+
+def test_an_international_prefix_is_honoured_over_the_region():
+    assert scrape.normalize_phone("+44 20 7946 0958", region="US") == "+442079460958"
+
+
+def test_extract_phones_deduplicates_in_order():
+    text = "Call (512) 555-0142 or 512-555-0142 or (512) 555-0143"
+    assert scrape.extract_phones(text) == ["+15125550142", "+15125550143"]
+
+
+def test_extract_phones_drops_invalid_candidates():
+    assert scrape.extract_phones("order SKU 1234567890123 today") == []
+
+
+def test_extract_phones_finds_a_non_us_format():
+    # The whole point of the region parameter. PHONE_RE never matched this
+    # shape, so a US-only candidate finder would report no phones at all
+    # for an Indian business.
+    assert scrape.extract_phones("Reception: 022 2822 1234", region="IN") == ["+912228221234"]
+
+
+def test_extract_phones_finds_a_uk_format():
+    assert scrape.extract_phones("Ring us on 020 7930 4832 any time", region="GB") == ["+442079304832"]
+
+
+def test_extract_phones_ignores_an_order_number():
+    assert scrape.extract_phones("Order #4567890123 shipped") == []

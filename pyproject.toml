@@ -9,6 +9,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "gspread>=6.1",
     "google-auth>=2.35",
+    "phonenumbers>=9.0.37",
 ]
 
 [dependency-groups]
