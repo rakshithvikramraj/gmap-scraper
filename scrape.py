@@ -504,12 +504,21 @@ def append_record(record: dict, path: Path | None = None) -> None:
     _append_line({"type": "record", **record}, path)
 
 
-def mark_pair_done(term: str, state: str, path: Path | None = None) -> None:
-    """Record that a (term, state) query finished, so re-runs can skip it."""
-    _append_line({"type": "pair", "term": term, "state": state}, path)
+LEGACY_COUNTRY = "United States"
 
 
-def read_cache(path: Path | None = None) -> tuple[list[dict], set[tuple[str, str]]]:
+def pair_key(term: str, place: "geo.Place") -> tuple[str, str, str, str]:
+    """Identity of one search, for the resume set."""
+    return (term, *place.key())
+
+
+def mark_pair_done(term: str, place: "geo.Place", path: Path | None = None) -> None:
+    """Record that a (term, place) search finished, so re-runs can skip it."""
+    _append_line({"type": "pair", "term": term, "country": place.country,
+                  "state": place.region, "city": place.city}, path)
+
+
+def read_cache(path: Path | None = None) -> tuple[list[dict], set[tuple[str, str, str, str]]]:
     """(records, completed_pairs) from the cache file.
 
     Records are deduplicated on place_key, last write wins. Malformed lines
@@ -520,7 +529,7 @@ def read_cache(path: Path | None = None) -> tuple[list[dict], set[tuple[str, str
         return ([], set())
 
     records: dict[str, dict] = {}
-    pairs: set[tuple[str, str]] = set()
+    pairs: set[tuple[str, str, str, str]] = set()
     with target.open(encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
@@ -535,7 +544,14 @@ def read_cache(path: Path | None = None) -> tuple[list[dict], set[tuple[str, str
                 key = obj.get("place_key", "")
                 records[key] = {**records.get(key, {}), **obj}
             elif kind == "pair":
-                pairs.add((obj.get("term", ""), obj.get("state", "")))
+                # Markers written before worldwide support carry no country,
+                # and every one of those runs was US-only.
+                pairs.add((
+                    obj.get("term", ""),
+                    obj.get("country", "") or LEGACY_COUNTRY,
+                    obj.get("state", ""),
+                    obj.get("city", ""),
+                ))
     return (list(records.values()), pairs)
 
 
@@ -855,7 +871,7 @@ def run_stage1(terms, places, limit=None, headless=True, force=False) -> None:
                 # Coverage identity for `runstate`: a whole-country run has no
                 # region, so the country stands in for a blank coverage cell.
                 place_state = place.region or place.country
-                if not force and (term, location) in done:
+                if not force and pair_key(term, place) in done:
                     print(f"skip (cached): {term} / {location}")
                     emit("query_skipped", term=term, state=place_state,
                          country=place.country, city=place.city)
@@ -887,7 +903,7 @@ def run_stage1(terms, places, limit=None, headless=True, force=False) -> None:
                     continue
                 consecutive_failures = 0
                 if should_mark_done(failed, complete) and not stop_requested():
-                    mark_pair_done(term, location)
+                    mark_pair_done(term, place)
                 else:
                     reason = (
                         f"{failed} listing(s) failed" if failed

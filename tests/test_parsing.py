@@ -305,9 +305,51 @@ def test_read_cache_merges_enrichment_over_a_rescrape(tmp_path):
 
 def test_mark_pair_done_round_trips(tmp_path):
     cache = tmp_path / "cache.jsonl"
-    scrape.mark_pair_done("padel club", "Texas", cache)
+    scrape.mark_pair_done("padel club", geo.Place("United States", "Texas"), cache)
     _, pairs = scrape.read_cache(cache)
-    assert pairs == {("padel club", "Texas")}
+    assert pairs == {("padel club", "United States", "Texas", "")}
+
+
+def test_a_done_marker_round_trips(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    place = geo.Place("United States", "Texas", "Austin")
+    scrape.mark_pair_done("gym", place, cache)
+    _, done = scrape.read_cache(cache)
+    assert scrape.pair_key("gym", place) in done
+
+
+def test_a_statewide_marker_does_not_satisfy_a_city(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    scrape.mark_pair_done("gym", geo.Place("United States", "Texas"), cache)
+    _, done = scrape.read_cache(cache)
+    assert scrape.pair_key("gym", geo.Place("United States", "Texas", "Austin")) not in done
+
+
+def test_a_legacy_two_part_marker_still_reads_as_done(tmp_path):
+    # Written by every run before this change, when the scraper was US-only.
+    cache = tmp_path / "cache.jsonl"
+    cache.write_text('{"type": "pair", "term": "padel club", "state": "Texas"}\n',
+                     encoding="utf-8")
+    _, done = scrape.read_cache(cache)
+    assert ("padel club", "United States", "Texas", "") in done
+
+
+def test_legacy_and_new_markers_coexist(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    cache.write_text('{"type": "pair", "term": "gym", "state": "Texas"}\n', encoding="utf-8")
+    scrape.mark_pair_done("gym", geo.Place("India", "Maharashtra", "Mumbai"), cache)
+    _, done = scrape.read_cache(cache)
+    assert ("gym", "United States", "Texas", "") in done
+    assert ("gym", "India", "Maharashtra", "Mumbai") in done
+
+
+def test_records_are_unaffected_by_the_marker_change(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    scrape.append_record({"place_key": "abc", "name": "A Gym"}, cache)
+    scrape.mark_pair_done("gym", geo.Place(country="India"), cache)
+    records, done = scrape.read_cache(cache)
+    assert [r["name"] for r in records] == ["A Gym"]
+    assert len(done) == 1
 
 
 def test_read_cache_skips_corrupt_lines(tmp_path):
