@@ -174,6 +174,31 @@ def test_find_owner_contact_rejects_an_over_long_capitalised_run():
     assert scrape.find_owner_contact(text) == ("", "+15125550100")
 
 
+def test_find_owner_contact_finds_an_indian_number():
+    # PHONE_RE never matched this shape, and the name search is anchored on
+    # the phone match's position -- a US-only candidate finder would lose
+    # both the number and the name for a business outside the US.
+    text = "Owner Priya Sharma - 022 2822 1234"
+    assert scrape.find_owner_contact(text, region="IN") == (
+        "Priya Sharma", "+912228221234"
+    )
+
+
+def test_find_owner_contact_finds_a_uk_number():
+    text = "Owner James Hall - 020 7930 4832"
+    assert scrape.find_owner_contact(text, region="GB") == (
+        "James Hall", "+442079304832"
+    )
+
+
+def test_find_owner_contact_us_cases_are_unaffected_by_the_region_default():
+    # Regression guard: switching the candidate finder to PhoneNumberMatcher
+    # must not change behaviour for the plain US case that was already
+    # covered above.
+    text = "Owner Maria Lopez - (512) 555-0100"
+    assert scrape.find_owner_contact(text) == ("Maria Lopez", "+15125550100")
+
+
 import pathlib
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -240,6 +265,18 @@ def test_enrich_website_excludes_the_listing_phone():
         "https://austinpadel.com", fake_fetcher(), listing_phone="+15125550100"
     )
     assert result["other_phones"] == ""
+
+
+def test_enrich_website_threads_region_to_owner_contact():
+    # The wiring bug this guards: `region` reached extract_phones but not
+    # find_owner_contact, so a non-US owner's name and phone came back
+    # empty while other_phones still found the same number.
+    def fetch(url):
+        return "<html><body>Owner Priya Sharma - 022 2822 1234</body></html>"
+
+    result = scrape.enrich_website("https://x.example", fetch, region="IN")
+    assert result["owner_name"] == "Priya Sharma"
+    assert result["owner_phone"] == "+912228221234"
 
 
 def test_enrich_website_records_fetch_failure():

@@ -295,13 +295,20 @@ def _gap(span: tuple[int, int], start: int, end: int) -> int:
     return 0
 
 
-def find_owner_contact(text: str) -> tuple[str, str]:
+def find_owner_contact(text: str, region: str = "US") -> tuple[str, str]:
     """(name, phone) for the phone number closest to an ownership title.
 
     Scores every phone number by its distance to the nearest title keyword and
     picks the closest. Distance rather than document order matters, because a
     concatenation of several pages can easily put an unrelated front-desk
     number within OWNER_WINDOW characters of an "Owner" heading further down.
+
+    PhoneNumberMatcher, not PHONE_RE, finds the candidates -- the same
+    international coverage extract_phones uses. A US-only regex here would
+    silently lose both the number and the name for a business outside the US:
+    the name search is anchored on the phone match's position, so a candidate
+    finder that never matches "022 2822 1234" costs the owner's name too, not
+    just their number.
 
     Returns ("", "") when no phone sits within OWNER_WINDOW characters of a
     keyword, and ("", phone) when one does but no usable personal name is near.
@@ -314,18 +321,18 @@ def find_owner_contact(text: str) -> tuple[str, str]:
 
     best_gap = None
     best = ("", "")
-    for match in PHONE_RE.finditer(text):
-        gap = min(_gap(span, match.start(), match.end()) for span in spans)
+    for match in phonenumbers.PhoneNumberMatcher(text, region or "US"):
+        gap = min(_gap(span, match.start, match.end) for span in spans)
         if gap > OWNER_WINDOW:
             continue
         if best_gap is not None and gap >= best_gap:
             continue
-        phone = normalize_phone(match.group(0))
-        if not phone:
-            continue
+        phone = phonenumbers.format_number(
+            match.number, phonenumbers.PhoneNumberFormat.E164
+        )
 
-        before = text[max(0, match.start() - OWNER_WINDOW):match.start()]
-        after = text[match.end():match.end() + OWNER_WINDOW]
+        before = text[max(0, match.start - OWNER_WINDOW):match.start]
+        after = text[match.end:match.end + OWNER_WINDOW]
         names_before = _names_in(before)
         name = names_before[-1] if names_before else ""
         if not name:
@@ -481,8 +488,13 @@ def enrich_website(
     emails, phones, an owner name/phone pair, and social links. Never raises:
     fetch failures land in the `enrich_error` field.
 
-    `region` is the ISO2 code phone validation falls back to for a number
-    without its own country code, e.g. "IN" for a search that targeted India.
+    `region` is the ISO2 code every phone lookup in this function -- the
+    owner name/phone search and the general phone scan alike -- falls back
+    to for a number without its own country code, e.g. "IN" for a search
+    that targeted India. Without it, an owner's locally-formatted number is
+    found by `extract_phones` for `other_phones` but missed by
+    `find_owner_contact`, which loses the owner's name too since the name
+    search is anchored on the phone match.
     """
     result = empty_enrichment()
     if not url:
@@ -505,7 +517,7 @@ def enrich_website(
     text = html_to_text(html)
 
     result["emails"] = "; ".join(extract_emails(html))
-    owner_name, owner_phone = find_owner_contact(text)
+    owner_name, owner_phone = find_owner_contact(text, region=region)
     result["owner_name"] = owner_name
     result["owner_phone"] = owner_phone
     result["other_phones"] = "; ".join(
