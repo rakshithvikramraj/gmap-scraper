@@ -419,3 +419,38 @@ def test_check_auth_explains_insufficient_scopes(monkeypatch, capsys):
     printed = capsys.readouterr().out
     assert "scopes" in printed
     assert "gcloud auth application-default login" in printed
+
+
+def test_parse_list_arg_returns_default_when_blank():
+    assert scrape.parse_list_arg(None, ["a", "b"]) == ["a", "b"]
+    assert scrape.parse_list_arg("", ["a"]) == ["a"]
+
+
+def test_parse_list_arg_splits_and_strips():
+    assert scrape.parse_list_arg("Texas, New York ,", ["x"]) == ["Texas", "New York"]
+
+
+def test_fill_rate_counts_non_empty_values():
+    records = [
+        {"place_key": "a", "phone": "+15125550100"},
+        {"place_key": "b", "phone": ""},
+    ]
+    rates = scrape.fill_rate(records)
+    assert rates["place_key"] == 1.0
+    assert rates["phone"] == 0.5
+    assert rates["emails"] == 0.0
+
+
+def test_fill_rate_empty_input():
+    assert scrape.fill_rate([]) == {}
+
+
+def test_write_csv_round_trips(tmp_path):
+    import csv
+
+    target = tmp_path / "out.csv"
+    scrape.write_csv([{"place_key": "k", "name": "Padel X"}], target)
+    with target.open() as handle:
+        rows = list(csv.reader(handle))
+    assert rows[0] == scrape.COLUMNS
+    assert rows[1][scrape.COLUMNS.index("name")] == "Padel X"

@@ -3,6 +3,8 @@
 Run `python scrape.py --help` for usage.
 """
 
+import argparse
+import csv
 import json
 import random
 import re
@@ -827,3 +829,118 @@ def check_auth() -> bool:
         return False
     print(f"OK: '{worksheet.spreadsheet.title}' / worksheet '{worksheet.title}'")
     return True
+
+
+def parse_list_arg(value: str | None, default: list[str]) -> list[str]:
+    """A comma-separated CLI value, or `default` when it is blank."""
+    if not value:
+        return list(default)
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def fill_rate(records: list[dict]) -> dict[str, float]:
+    """Fraction of records with a non-empty value, per column."""
+    if not records:
+        return {}
+    total = len(records)
+    return {
+        column: sum(
+            1 for record in records if str(record.get(column, "")).strip()
+        ) / total
+        for column in COLUMNS
+    }
+
+
+def write_csv(records: list[dict], path: Path | None = None) -> None:
+    """Write every record to CSV as a local backup."""
+    target = path or CSV_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(COLUMNS)
+        writer.writerows(record_to_row(record) for record in records)
+
+
+def run_stage2(force: bool = False) -> None:
+    """Enrich every cached record that has a website and is not yet enriched."""
+    records, _ = read_cache()
+    targets = [
+        record for record in records
+        if record.get("website") and (force or not record.get("enriched_at"))
+    ]
+    if not targets:
+        print("nothing to enrich")
+        return
+
+    print(f"enriching {len(targets)} club websites")
+    fetch = make_fetcher()
+    for index, record in enumerate(targets, start=1):
+        enrichment = enrich_website(
+            record["website"], fetch, record.get("phone", "")
+        )
+        updated = dict(record)
+        updated.update(
+            {k: v for k, v in enrichment.items() if k in COLUMNS}
+        )
+        updated["enrich_error"] = enrichment["enrich_error"]
+        updated["enriched_at"] = utc_now()
+        append_record(updated)
+        if index % 25 == 0:
+            print(f"  {index}/{len(targets)}")
+
+
+def print_fill_rate(records: list[dict]) -> None:
+    """Print per-column fill rates; near-zero values mean a broken selector."""
+    rates = fill_rate(records)
+    if not rates:
+        return
+    print("\nfill rate by column:")
+    for column in COLUMNS:
+        print(f"  {column:<14} {rates[column]:>6.1%}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Scrape club listings from Google Maps into a Google Sheet."
+    )
+    parser.add_argument("--terms", help="comma-separated search terms")
+    parser.add_argument("--states", help="comma-separated states, e.g. Texas,Florida")
+    parser.add_argument("--limit", type=int, help="max listings per query")
+    parser.add_argument("--no-enrich", action="store_true", help="skip Stage 2")
+    parser.add_argument("--sheets-only", action="store_true", help="push cache only")
+    parser.add_argument("--headed", action="store_true", help="visible browser")
+    parser.add_argument("--force", action="store_true", help="ignore the cache")
+    parser.add_argument("--check-auth", action="store_true", help="test Sheets access")
+    args = parser.parse_args(argv)
+
+    if args.check_auth:
+        return 0 if check_auth() else 1
+
+    if not args.sheets_only:
+        run_stage1(
+            parse_list_arg(args.terms, SEARCH_TERMS),
+            parse_list_arg(args.states, STATES),
+            limit=args.limit,
+            headless=not args.headed,
+            force=args.force,
+        )
+        if ENRICH_SITES and not args.no_enrich:
+            run_stage2(force=args.force)
+
+    records, _ = read_cache()
+    write_csv(records)
+    print(f"\n{len(records)} records -> {CSV_PATH}")
+    print_fill_rate(records)
+    try:
+        write_records(records)
+    except Exception as exc:
+        print(f"\nSheets write failed: {type(exc).__name__}: {exc}")
+        print(f"Every record is safe in {CSV_PATH}. Diagnose with:")
+        print("  python scrape.py --check-auth")
+        print("then re-push with:  python scrape.py --sheets-only")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
