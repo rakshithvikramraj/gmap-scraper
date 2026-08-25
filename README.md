@@ -1,8 +1,8 @@
-# Google Maps Club Scraper
+# Wkey Lead Scraper
 
-Scrapes club listings from Google Maps across US states, enriches them with
-contact details from each club's own website, and upserts the results into a
-Google Sheet.
+Finds business listings on Google Maps across US states, enriches them with
+contact details from each business's own website, and writes the results to a
+CSV. What it searches for is whatever terms you give it.
 
 ## For teammates: getting started
 
@@ -13,14 +13,14 @@ Download the app and open it. Nothing to install first — no Python, no Git.
 
    | Your machine | File |
    |---|---|
-   | Mac, 2021 or newer | `club-scraper-macos-arm64.zip` |
-   | Mac, 2020 or older | `club-scraper-macos-intel.zip` |
-   | Windows | `club-scraper-windows-x64.zip` |
+   | Mac, 2021 or newer | `wkey-lead-scraper-macos-arm64.zip` |
+   | Mac, 2020 or older | `wkey-lead-scraper-macos-intel.zip` |
+   | Windows | `wkey-lead-scraper-windows-x64.zip` |
 
    Not sure which Mac you have? Apple menu → About This Mac. A chip named
    "Apple M1" or later is the first row; "Intel" is the second.
 
-2. Unzip it and open **Club Scraper**.
+2. Unzip it and open **Wkey Lead Scraper**.
 
 3. **The first open is blocked. This is expected, and it happens once.** The
    app is not signed with a paid Apple or Microsoft certificate, so both
@@ -28,12 +28,12 @@ Download the app and open it. Nothing to install first — no Python, no Git.
 
    - **macOS** — open it, let it be blocked, then go to **System Settings →
      Privacy & Security**, scroll down, and click **Open Anyway** next to the
-     message about Club Scraper. Open the app again and it starts.
+     message about Wkey Lead Scraper. Open the app again and it starts.
    - **Windows** — click **More info**, then **Run anyway**.
 
    Every open after that is an ordinary double-click.
 
-Results are saved to a **Club Scraper** folder inside your Documents.
+Results are saved to a **Wkey Lead Scraper** folder inside your Documents.
 
 The download is around 320MB because the app carries its own browser. That is
 what lets it run with nothing installed beforehand.
@@ -94,7 +94,7 @@ later to carry on from where it stopped.
 For a quick trial run, tick **Stop after N clubs per state** — that caps each
 state at a handful of listings and finishes in minutes.
 
-Results are written to `results.csv` — in the **Club Scraper** folder in
+Results are written to `results.csv` — in the **Wkey Lead Scraper** folder in
 your Documents if you downloaded the app, or in `data/` if you are running
 from source. It opens in Excel or imports straight into Google Sheets.
 
@@ -226,8 +226,8 @@ To build locally on your own machine:
 ```bash
 uv sync
 PLAYWRIGHT_BROWSERS_PATH="$PWD/build/pw-browsers" uv run playwright install chromium
-uv run pyinstaller club-scraper.spec --noconfirm
-uv run python package.py --browsers build/pw-browsers --name club-scraper-local
+uv run pyinstaller wkey-lead-scraper.spec --noconfirm
+uv run python package.py --browsers build/pw-browsers --name wkey-lead-scraper-local
 ```
 
 `package.py` is a required step, not a convenience. PyInstaller cannot collect

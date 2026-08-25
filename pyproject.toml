@@ -1,5 +1,5 @@
 [project]
-name = "club-scraper"
+name = "wkey-lead-scraper"
 version = "1.0.0"
 description = "Scrapes club listings from Google Maps into a spreadsheet."
 requires-python = ">=3.11"

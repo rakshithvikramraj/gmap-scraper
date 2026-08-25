@@ -16,7 +16,7 @@ from pathlib import Path
 
 # The folder a teammate sees. Results are the deliverable, so they go
 # somewhere findable rather than into ~/Library/Application Support.
-APP_FOLDER = "Club Scraper"
+APP_FOLDER = "Wkey Lead Scraper"
 
 # PyInstaller unpacks the bundle here and stores the location on sys.
 BUNDLED_BROWSERS = "ms-playwright"

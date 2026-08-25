@@ -15,9 +15,9 @@ and on macOS three details each break the download in their own way:
   * ditto, not cp and not zip. Chromium's framework contains symlinks that
     plain zip flattens into copies, and the browser will not start.
 
-Run after `pyinstaller club-scraper.spec`:
+Run after `pyinstaller wkey-lead-scraper.spec`:
 
-    python package.py --browsers build/pw-browsers --name club-scraper-macos-arm64
+    python package.py --browsers build/pw-browsers --name wkey-lead-scraper-macos-arm64
 """
 
 import argparse
@@ -27,7 +27,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-APP_NAME = "Club Scraper"
+APP_NAME = "Wkey Lead Scraper"
 BROWSER_DIR = "ms-playwright"
 
 IS_MAC = sys.platform == "darwin"
@@ -42,7 +42,7 @@ def build_root(dist: Path) -> Path:
     """The tree PyInstaller produced for this platform."""
     root = dist / (f"{APP_NAME}.app" if IS_MAC else APP_NAME)
     if not root.is_dir():
-        fail(f"no build at {root} - run pyinstaller club-scraper.spec first")
+        fail(f"no build at {root} - run pyinstaller wkey-lead-scraper.spec first")
     return root
 
 

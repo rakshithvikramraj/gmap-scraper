@@ -132,7 +132,7 @@ def apply_theme(root) -> None:
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Club Scraper")
+        self.title("Wkey Lead Scraper")
         self.geometry("1100x740")
         self.minsize(960, 660)
         self.configure(bg=PALETTE["bg"])

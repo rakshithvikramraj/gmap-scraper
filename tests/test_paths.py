@@ -53,7 +53,7 @@ def test_data_dir_frozen_is_absolute(frozen):
 def test_data_dir_frozen_lands_in_documents(frozen):
     result = paths.data_dir()
     assert result.parent.name == "Documents"
-    assert result.name == "Club Scraper"
+    assert result.name == "Wkey Lead Scraper"
 
 
 def test_data_dir_frozen_is_under_the_users_home(frozen):

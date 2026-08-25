@@ -45,13 +45,13 @@ jobs:
         include:
           - os: macos-14
             label: macOS (Apple Silicon)
-            asset: club-scraper-macos-arm64
+            asset: wkey-lead-scraper-macos-arm64
           - os: macos-13
             label: macOS (Intel)
-            asset: club-scraper-macos-intel
+            asset: wkey-lead-scraper-macos-intel
           - os: windows-latest
             label: Windows
-            asset: club-scraper-windows-x64
+            asset: wkey-lead-scraper-windows-x64
     steps:
       - uses: actions/checkout@v4
 
@@ -66,9 +66,9 @@ jobs:
         run: |
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             # Info.plist wants a bare x.y.z, so drop the leading v.
-            echo "CLUB_SCRAPER_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+            echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           else
-            echo "CLUB_SCRAPER_VERSION=0.0.0" >> "$GITHUB_ENV"
+            echo "APP_VERSION=0.0.0" >> "$GITHUB_ENV"
           fi
 
       - name: Download Chromium
@@ -80,7 +80,7 @@ jobs:
         run: uv run playwright install chromium
 
       - name: Build
-        run: uv run pyinstaller club-scraper.spec --noconfirm
+        run: uv run pyinstaller wkey-lead-scraper.spec --noconfirm
 
       - name: Package
         # Adds the browsers, re-signs the macOS bundle and zips it. Fails loudly
@@ -114,9 +114,9 @@ jobs:
 
           | Your machine | File |
           |---|---|
-          | Mac, 2021 or newer | `club-scraper-macos-arm64.zip` |
-          | Mac, 2020 or older | `club-scraper-macos-intel.zip` |
-          | Windows | `club-scraper-windows-x64.zip` |
+          | Mac, 2021 or newer | `wkey-lead-scraper-macos-arm64.zip` |
+          | Mac, 2020 or older | `wkey-lead-scraper-macos-intel.zip` |
+          | Windows | `wkey-lead-scraper-windows-x64.zip` |
 
           **The first open needs one extra step.** The app is not signed with a
           paid Apple or Microsoft certificate, so both systems ask before running
@@ -124,12 +124,12 @@ jobs:
 
           - **macOS** — open it, let it be blocked, then go to System Settings ->
             Privacy & Security and click **Open Anyway** next to the message about
-            Club Scraper. Open the app again and it will start.
+            Wkey Lead Scraper. Open the app again and it will start.
           - **Windows** — click **More info**, then **Run anyway**.
 
-          Results are saved to a **Club Scraper** folder in your Documents.
+          Results are saved to a **Wkey Lead Scraper** folder in your Documents.
           NOTES
           gh release create "$GITHUB_REF_NAME" \
-            --title "Club Scraper $GITHUB_REF_NAME" \
+            --title "Wkey Lead Scraper $GITHUB_REF_NAME" \
             --notes-file notes.md \
             assets/*/*.zip

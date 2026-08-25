@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller build for the Club Scraper desktop app.
+"""PyInstaller build for the Wkey Lead Scraper desktop app.
 
 One spec, three targets: macOS arm64, macOS x86_64 and Windows x64. The
 architecture follows whichever Python runs the build, so CI picks it by
@@ -10,7 +10,7 @@ rewrites the signature of every Mach-O file it collects, which fails outright
 on Chromium's signed nested .app. package.py adds them afterwards; run it
 straight after this spec or the build ships unable to scrape.
 
-CLUB_SCRAPER_VERSION, if set, is written into the macOS Info.plist.
+APP_VERSION, if set, is written into the macOS Info.plist.
 
 Built onedir, never onefile: onefile unpacks ~500MB to a temp directory on
 every launch and reads to Windows antivirus as a self-extracting archive.
@@ -21,7 +21,7 @@ import sys
 
 from PyInstaller.utils.hooks import collect_all
 
-VERSION = os.environ.get("CLUB_SCRAPER_VERSION", "0.0.0-dev")
+VERSION = os.environ.get("APP_VERSION", "0.0.0-dev")
 
 # Playwright is a Python package wrapping a Node driver that launches a
 # browser. collect_all reaches the Python package and the Node driver; the
@@ -49,7 +49,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Club Scraper",
+    name="Wkey Lead Scraper",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -69,15 +69,15 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="Club Scraper",
+    name="Wkey Lead Scraper",
 )
 
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="Club Scraper.app",
+        name="Wkey Lead Scraper.app",
         icon=None,
-        bundle_identifier="dev.clubscraper.app",
+        bundle_identifier="dev.wkey.leadscraper",
         version=VERSION,
         info_plist={
             "CFBundleShortVersionString": VERSION,
