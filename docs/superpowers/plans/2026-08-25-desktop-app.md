@@ -528,8 +528,11 @@ from dataclasses import dataclass, field, replace
 
 MAX_LOG = 200
 
-# Worst-first, so a later good outcome cannot hide an earlier bad one.
-_RANK = {"pending": 0, "done": 1, "active": 2, "partial": 3, "failed": 4}
+# Ordered so a state can advance from transient to settled, but a settled
+# outcome can only ever get worse. "active" must rank BELOW "done", or a
+# state that starts scraping can never finish: query_done would be unable to
+# replace the "active" that query_start set.
+_RANK = {"pending": 0, "active": 1, "done": 2, "partial": 3, "failed": 4}
 
 
 @dataclass
