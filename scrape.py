@@ -127,3 +127,112 @@ def extract_emails(html: str) -> list[str]:
     return sorted(
         {e.lower() for e in found if not is_junk_email(e)}
     )
+
+
+PHONE_RE = re.compile(
+    r"(?:\+?1[\s.\-]?)?\(?([2-9]\d{2})\)?[\s.\-]?(\d{3})[\s.\-]?(\d{4})(?!\d)"
+)
+NAME_RE = re.compile(r"\b([A-Z][a-z]{1,15})\s+([A-Z][a-z]{1,15})\b")
+
+OWNER_KEYWORDS = (
+    "owner", "founder", "co-founder", "cofounder", "proprietor",
+    "general manager", "club manager", "managing director", "director",
+    "president", "principal", "ceo",
+)
+NAME_STOPWORDS = {
+    "general", "manager", "managing", "director", "club", "padel", "tennis",
+    "contact", "phone", "email", "office", "front", "desk", "head", "coach",
+    "the", "our", "call", "text", "united", "states", "founder", "owner",
+    "president", "principal", "monday", "friday", "saturday", "sunday",
+    "book", "now", "court", "courts", "sports", "center", "centre", "academy",
+}
+OWNER_WINDOW = 120
+
+
+def normalize_phone(raw: str) -> str:
+    """US phone number as +1XXXXXXXXXX, or "" if it is not one."""
+    digits = re.sub(r"\D", "", raw)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) != 10:
+        return ""
+    return "+1" + digits
+
+
+def extract_phones(text: str) -> list[str]:
+    """Normalized US phone numbers in `text`, deduplicated, in order."""
+    seen: list[str] = []
+    for match in PHONE_RE.finditer(text):
+        number = normalize_phone(match.group(0))
+        if number and number not in seen:
+            seen.append(number)
+    return seen
+
+
+def _clean_name(first: str, last: str) -> str:
+    """Reject candidate names that are really job titles or page furniture."""
+    if first.lower() in NAME_STOPWORDS or last.lower() in NAME_STOPWORDS:
+        return ""
+    return f"{first} {last}"
+
+
+def _keyword_spans(lowered: str) -> list[tuple[int, int]]:
+    """Character spans of every ownership keyword occurrence."""
+    spans = []
+    for keyword in OWNER_KEYWORDS:
+        start = lowered.find(keyword)
+        while start != -1:
+            spans.append((start, start + len(keyword)))
+            start = lowered.find(keyword, start + 1)
+    return spans
+
+
+def _gap(span: tuple[int, int], start: int, end: int) -> int:
+    """Character distance between a keyword span and a phone span."""
+    keyword_start, keyword_end = span
+    if keyword_end <= start:
+        return start - keyword_end
+    if keyword_start >= end:
+        return keyword_start - end
+    return 0
+
+
+def find_owner_contact(text: str) -> tuple[str, str]:
+    """(name, phone) for the phone number closest to an ownership title.
+
+    Scores every phone number by its distance to the nearest title keyword and
+    picks the closest. Distance rather than document order matters, because a
+    concatenation of several pages can easily put an unrelated front-desk
+    number within OWNER_WINDOW characters of an "Owner" heading further down.
+
+    Returns ("", "") when no phone sits within OWNER_WINDOW characters of a
+    keyword, and ("", phone) when one does but no usable personal name is near.
+    """
+    if not text:
+        return ("", "")
+    spans = _keyword_spans(text.lower())
+    if not spans:
+        return ("", "")
+
+    best_gap = None
+    best = ("", "")
+    for match in PHONE_RE.finditer(text):
+        gap = min(_gap(span, match.start(), match.end()) for span in spans)
+        if gap > OWNER_WINDOW:
+            continue
+        if best_gap is not None and gap >= best_gap:
+            continue
+        phone = normalize_phone(match.group(0))
+        if not phone:
+            continue
+
+        before = text[max(0, match.start() - OWNER_WINDOW):match.start()]
+        after = text[match.end():match.end() + OWNER_WINDOW]
+        candidates = [_clean_name(f, l) for f, l in NAME_RE.findall(before)]
+        name = next((c for c in reversed(candidates) if c), "")
+        if not name:
+            candidates = [_clean_name(f, l) for f, l in NAME_RE.findall(after)]
+            name = next((c for c in candidates if c), "")
+
+        best_gap, best = gap, (name, phone)
+    return best

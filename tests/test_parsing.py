@@ -95,3 +95,54 @@ def test_extract_emails_drops_long_hex_locals():
 
 def test_extract_emails_empty_input():
     assert scrape.extract_emails("") == []
+
+
+def test_normalize_phone_strips_formatting():
+    assert scrape.normalize_phone("(512) 555-0100") == "+15125550100"
+    assert scrape.normalize_phone("+1 512.555.0100") == "+15125550100"
+    assert scrape.normalize_phone("512-555-0100") == "+15125550100"
+
+
+def test_normalize_phone_rejects_wrong_length():
+    assert scrape.normalize_phone("555-0100") == ""
+    assert scrape.normalize_phone("") == ""
+    assert scrape.normalize_phone("12345678901234") == ""
+
+
+def test_extract_phones_dedupes_across_formats():
+    text = "Call (512) 555-0100 or 512-555-0100 or 512.555.0199"
+    assert scrape.extract_phones(text) == ["+15125550100", "+15125550199"]
+
+
+def test_find_owner_contact_matches_name_before_title():
+    text = "John Smith, Owner - (512) 555-0100"
+    assert scrape.find_owner_contact(text) == ("John Smith", "+15125550100")
+
+
+def test_find_owner_contact_matches_name_after_phone():
+    text = "Founder: (512) 555-0100 Maria Lopez"
+    assert scrape.find_owner_contact(text) == ("Maria Lopez", "+15125550100")
+
+
+def test_find_owner_contact_ignores_phones_without_a_title_keyword():
+    text = "Call the front desk on (512) 555-0100 to book a court."
+    assert scrape.find_owner_contact(text) == ("", "")
+
+
+def test_find_owner_contact_returns_phone_when_name_is_only_a_title():
+    text = "General Manager: (512) 555-0100"
+    assert scrape.find_owner_contact(text) == ("", "+15125550100")
+
+
+def test_find_owner_contact_ignores_distant_keywords():
+    text = "Owner" + (" filler" * 60) + " call (512) 555-0100"
+    assert scrape.find_owner_contact(text) == ("", "")
+
+
+def test_find_owner_contact_prefers_the_nearest_title_keyword():
+    text = "Front desk (512) 555-0100. Our team: John Smith, Owner - (512) 555-0142"
+    assert scrape.find_owner_contact(text) == ("John Smith", "+15125550142")
+
+
+def test_find_owner_contact_empty_text():
+    assert scrape.find_owner_contact("") == ("", "")
