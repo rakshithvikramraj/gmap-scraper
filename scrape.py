@@ -8,6 +8,7 @@ import csv
 import json
 import random
 import re
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -588,6 +589,53 @@ def build_record(raw: dict, term: str, state: str, now: str) -> dict:
     return record
 
 
+# ---------------------------------------------------------------------------
+# Event hook - lets a GUI observe a run without parsing printed output
+# ---------------------------------------------------------------------------
+
+_listeners: list = []
+_stop = threading.Event()
+
+
+def subscribe(listener) -> None:
+    """Register listener(kind, data), called for every emitted event."""
+    if listener not in _listeners:
+        _listeners.append(listener)
+
+
+def unsubscribe(listener) -> None:
+    """Remove a previously registered listener. Silent if absent."""
+    if listener in _listeners:
+        _listeners.remove(listener)
+
+
+def emit(kind: str, **data) -> None:
+    """Notify every listener.
+
+    Never raises. A listener is UI code running on another thread; a bug there
+    must not abort a scrape that has been running for hours.
+    """
+    for listener in list(_listeners):
+        try:
+            listener(kind, data)
+        except Exception:
+            pass
+
+
+def request_stop() -> None:
+    """Ask the current run to stop at the next listing boundary."""
+    _stop.set()
+
+
+def stop_requested() -> bool:
+    return _stop.is_set()
+
+
+def clear_stop() -> None:
+    """Reset the flag. Call before starting a run."""
+    _stop.clear()
+
+
 SELECTORS = {
     "feed": 'div[role="feed"]',
     "result_link": 'a[href*="/maps/place/"]',
@@ -711,17 +759,23 @@ def scrape_query(
 
     if "/maps/place/" in page.url:
         print(f"  single result for {term} / {state}")
+        emit("listings_found", term=term, state=state, count=1, at_cap=False)
         try:
-            append_record(scrape_listing(page, page.url, term, state))
+            record = scrape_listing(page, page.url, term, state)
+            append_record(record)
+            emit("listing_saved", name=record.get("name", ""),
+                 city=record.get("city", ""), state=record.get("state", ""))
             return 1, 0, True
         except Exception as exc:
             print(f"  skipped the single result: {type(exc).__name__}: {exc}")
+            emit("listing_failed", error=f"{type(exc).__name__}: {exc}")
             return 0, 1, True
 
     try:
         page.wait_for_selector(SELECTORS["feed"], timeout=20000)
     except PWTimeout:
         print(f"  no results feed for {term} / {state}")
+        emit("listings_found", term=term, state=state, count=0, at_cap=False)
         return 0, 0, False
 
     links = collect_result_links(page)
@@ -729,18 +783,26 @@ def scrape_query(
     if limit:
         links = links[:limit]
     print(f"  {len(links)} listings for {term} / {state}")
+    emit("listings_found", term=term, state=state, count=len(links),
+         at_cap=len(links) >= 118)
     if len(links) >= 118:
         print("  WARNING: at the ~120 result cap; this state is undersampled")
 
     scraped = 0
     failed = 0
     for link in links:
+        if stop_requested():
+            break
         try:
-            append_record(scrape_listing(page, link, term, state))
+            record = scrape_listing(page, link, term, state)
+            append_record(record)
             scraped += 1
+            emit("listing_saved", name=record.get("name", ""),
+                 city=record.get("city", ""), state=record.get("state", ""))
         except Exception as exc:
-            print(f"  skipped a listing: {type(exc).__name__}: {exc}")
             failed += 1
+            print(f"  skipped a listing: {type(exc).__name__}: {exc}")
+            emit("listing_failed", error=f"{type(exc).__name__}: {exc}")
         _pause(PAUSE_LISTING)
     return scraped, failed, complete
 
@@ -748,6 +810,8 @@ def scrape_query(
 def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
     """Scrape every (term, state) pair not already in the cache."""
     _, done = read_cache()
+    emit("run_start", terms=list(terms), states=list(states),
+         total_queries=len(terms) * len(states))
     consecutive_failures = 0
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless)
@@ -757,14 +821,21 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
         page = context.new_page()
         for term in terms:
             for state in states:
+                if stop_requested():
+                    browser.close()
+                    return
                 if not force and (term, state) in done:
                     print(f"skip (cached): {term} / {state}")
+                    emit("query_skipped", term=term, state=state)
                     continue
                 print(f"searching: {term} / {state}")
+                emit("query_start", term=term, state=state)
                 try:
                     scraped, failed, complete = scrape_query(page, term, state, limit)
                 except Exception as exc:
                     print(f"  FAILED {term} / {state}: {exc}")
+                    emit("query_failed", term=term, state=state,
+                         error=f"{type(exc).__name__}: {exc}")
                     consecutive_failures += 1
                     if consecutive_failures >= CONSECUTIVE_FAILURE_LIMIT:
                         print(
@@ -773,12 +844,14 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
                             "died.\nNothing scraped so far is lost \u2014 re-run to resume, "
                             "or use --headed to solve a CAPTCHA by hand."
                         )
+                        emit("blocked", term=term, state=state,
+                             consecutive=consecutive_failures)
                         browser.close()
                         return
                     _pause(PAUSE_QUERY)
                     continue
                 consecutive_failures = 0
-                if should_mark_done(failed, complete):
+                if should_mark_done(failed, complete) and not stop_requested():
                     mark_pair_done(term, state)
                 else:
                     reason = (
@@ -789,6 +862,8 @@ def run_stage1(terms, states, limit=None, headless=True, force=False) -> None:
                         f"  {reason}; leaving {term} / {state} unmarked "
                         "so a re-run retries it"
                     )
+                emit("query_done", term=term, state=state, scraped=scraped,
+                     failed=failed, complete=complete)
                 _pause(PAUSE_QUERY)
         browser.close()
 
@@ -961,8 +1036,11 @@ def run_stage2(force: bool = False) -> None:
         return
 
     print(f"enriching {len(targets)} club websites")
+    emit("stage2_start", total=len(targets))
     fetch = make_fetcher()
     for index, record in enumerate(targets, start=1):
+        if stop_requested():
+            break
         try:
             enrichment = enrich_website(
                 record["website"], fetch, record.get("phone", "")
@@ -978,6 +1056,8 @@ def run_stage2(force: bool = False) -> None:
         updated["enrich_error"] = enrichment["enrich_error"]
         updated["enriched_at"] = utc_now()
         append_record(updated)
+        emit("enriched", index=index, total=len(targets),
+             name=record.get("name", ""), error=enrichment["enrich_error"])
         if index % 25 == 0:
             print(f"  {index}/{len(targets)}")
 
