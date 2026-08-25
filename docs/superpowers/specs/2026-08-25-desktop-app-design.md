@@ -105,9 +105,15 @@ def stop_requested() -> bool: ...
 def clear_stop() -> None: ...
 ```
 
-Every existing `print()` in the run path becomes an `emit()`. A default
-listener, installed by `main()`, prints exactly the strings the CLI prints
-today, so terminal output is byte-identical.
+`emit()` calls are added **beside** the existing `print()` calls rather than
+replacing them. Replacing would require a default listener that reproduces
+every message string exactly, duplicating the wording in two places where it
+could drift; adding alongside makes the CLI's output byte-identical by
+construction and leaves nothing to keep in sync. The window ignores stdout.
+
+Only the run path emits: `scrape_query`, `run_stage1` and `run_stage2`. The
+Sheets and authentication messages stay print-only, since the window has no
+Sheets path.
 
 `scrape_query` checks `stop_requested()` between listings and `run_stage1`
 between queries. On a stop request both return normally, so the pair is left
