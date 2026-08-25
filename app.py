@@ -412,7 +412,7 @@ class App(tk.Tk):
             pass
 
     def on_start(self):
-        if self.worker and self.worker.is_alive():
+        if self.worker is not None:
             return self.on_stop()
 
         prefs = self.current_prefs()
