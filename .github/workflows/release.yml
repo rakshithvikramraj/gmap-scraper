@@ -1,0 +1,135 @@
+# Builds the double-clickable app for macOS and Windows.
+#
+# Push a tag to cut a release:      git tag v1.1.0 && git push origin v1.1.0
+# Run it by hand to test a build:   Actions -> Release -> Run workflow
+#
+# A manual run uploads the three zips as workflow artifacts and stops there.
+# Only a tag creates a GitHub Release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Needed by `gh release create`. Nothing else in this workflow writes.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync
+      # Gates the three builds below, which cost roughly 10x these minutes on
+      # a private repo. A red suite should cost one cheap job, not four.
+      - run: uv run pytest -q
+
+  build:
+    name: ${{ matrix.label }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing must not throw away the other two.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: macOS (Apple Silicon)
+            asset: club-scraper-macos-arm64
+          - os: macos-13
+            label: macOS (Intel)
+            asset: club-scraper-macos-intel
+          - os: windows-latest
+            label: Windows
+            asset: club-scraper-windows-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - run: uv sync
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            # Info.plist wants a bare x.y.z, so drop the leading v.
+            echo "CLUB_SCRAPER_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "CLUB_SCRAPER_VERSION=0.0.0" >> "$GITHUB_ENV"
+          fi
+
+      - name: Download Chromium
+        # Into the workspace rather than the runner's cache, so package.py can
+        # copy it into the app. Both builds: headless scrapes drive the
+        # headless shell, "Show the browser" drives full Chromium.
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/pw-browsers
+        run: uv run playwright install chromium
+
+      - name: Build
+        run: uv run pyinstaller club-scraper.spec --noconfirm
+
+      - name: Package
+        # Adds the browsers, re-signs the macOS bundle and zips it. Fails loudly
+        # rather than shipping an app that cannot scrape.
+        run: uv run python package.py --browsers build/pw-browsers --name ${{ matrix.asset }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}.zip
+          # These are ~320MB each; the default 90 days is more than anyone needs
+          # for a build that is either released or discarded.
+          retention-days: 14
+
+  release:
+    name: Publish release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'NOTES'
+          Download the file for your machine, unzip it, and open the app.
+
+          | Your machine | File |
+          |---|---|
+          | Mac, 2021 or newer | `club-scraper-macos-arm64.zip` |
+          | Mac, 2020 or older | `club-scraper-macos-intel.zip` |
+          | Windows | `club-scraper-windows-x64.zip` |
+
+          **The first open needs one extra step.** The app is not signed with a
+          paid Apple or Microsoft certificate, so both systems ask before running
+          something they have not seen before. This is one time per machine.
+
+          - **macOS** — open it, let it be blocked, then go to System Settings ->
+            Privacy & Security and click **Open Anyway** next to the message about
+            Club Scraper. Open the app again and it will start.
+          - **Windows** — click **More info**, then **Run anyway**.
+
+          Results are saved to a **Club Scraper** folder in your Documents.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Club Scraper $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            assets/*/*.zip

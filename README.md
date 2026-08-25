@@ -6,7 +6,42 @@ Google Sheet.
 
 ## For teammates: getting started
 
-You need nothing installed beforehand — not even Python.
+Download the app and open it. Nothing to install first — no Python, no Git.
+
+1. Open the [Releases page](https://github.com/rakshithvikramraj/gmap-scraper/releases)
+   and download the file for your machine:
+
+   | Your machine | File |
+   |---|---|
+   | Mac, 2021 or newer | `club-scraper-macos-arm64.zip` |
+   | Mac, 2020 or older | `club-scraper-macos-intel.zip` |
+   | Windows | `club-scraper-windows-x64.zip` |
+
+   Not sure which Mac you have? Apple menu → About This Mac. A chip named
+   "Apple M1" or later is the first row; "Intel" is the second.
+
+2. Unzip it and open **Club Scraper**.
+
+3. **The first open is blocked. This is expected, and it happens once.** The
+   app is not signed with a paid Apple or Microsoft certificate, so both
+   systems hold anything they have not seen before:
+
+   - **macOS** — open it, let it be blocked, then go to **System Settings →
+     Privacy & Security**, scroll down, and click **Open Anyway** next to the
+     message about Club Scraper. Open the app again and it starts.
+   - **Windows** — click **More info**, then **Run anyway**.
+
+   Every open after that is an ordinary double-click.
+
+Results are saved to a **Club Scraper** folder inside your Documents.
+
+The download is around 320MB because the app carries its own browser. That is
+what lets it run with nothing installed beforehand.
+
+### Running from source instead
+
+Useful for development, and as a fallback if a download is blocked. It needs
+nothing installed either — the setup script fetches its own Python.
 
 **macOS**
 
@@ -33,12 +68,13 @@ The `.\` prefix is required in PowerShell and harmless in Command Prompt, so
 the block above works pasted into either.
 
 Setup downloads roughly 180MB once: Python, the libraries, and the browser the
-scraper drives. After that both scripts start instantly.
+scraper drives. After that both scripts start instantly. Run from source and
+results land in `data/` next to the code, not in Documents.
 
 To get later fixes, run `git pull` and then `./setup.command` (or `.\setup.bat`)
 again.
 
-**If you were sent a zip instead of a repo link**
+**If you were sent a zip of the source instead of a repo link**
 
 macOS quarantines everything unpacked from a downloaded archive, so
 `./setup.command` refuses to run. Clear it once, from inside the project
@@ -58,8 +94,9 @@ later to carry on from where it stopped.
 For a quick trial run, tick **Stop after N clubs per state** — that caps each
 state at a handful of listings and finishes in minutes.
 
-Results are written to `data/results.csv`, which opens in Excel or imports
-straight into Google Sheets.
+Results are written to `results.csv` — in the **Club Scraper** folder in
+your Documents if you downloaded the app, or in `data/` if you are running
+from source. It opens in Excel or imports straight into Google Sheets.
 
 ### If something looks wrong
 
@@ -165,6 +202,41 @@ rest of the rows rely on `phone`, `emails` and `other_phones`.
 A per-state count of 118 or more means that state hit Google's roughly
 120-result cap and is undersampled. Re-run it with narrower searches, for
 example `--terms "padel club Dallas","padel club Houston" --states Texas`.
+
+## Building the packages
+
+GitHub Actions builds all three downloads. Push a tag and it cuts a release:
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+The workflow runs the tests first, then builds on `macos-14` (Apple Silicon),
+`macos-13` (Intel) and `windows-latest`, and attaches the three zips to a new
+release. To try a build without releasing anything, run it by hand from the
+Actions tab — the zips come out as workflow artifacts instead.
+
+Note that a private repo bills macOS runner minutes at 10x and Windows at 2x,
+so a full release costs far more than the wall-clock time suggests.
+
+To build locally on your own machine:
+
+```bash
+uv sync
+PLAYWRIGHT_BROWSERS_PATH="$PWD/build/pw-browsers" uv run playwright install chromium
+uv run pyinstaller club-scraper.spec --noconfirm
+uv run python package.py --browsers build/pw-browsers --name club-scraper-local
+```
+
+`package.py` is a required step, not a convenience. PyInstaller cannot collect
+the browsers itself — it rewrites the signature of every Mach-O file it copies
+and fails on Chromium's signed nested `.app` — so `package.py` adds them
+afterwards, re-signs the macOS bundle, and archives it with `ditto` (plain
+`zip` flattens the symlinks inside Chromium's framework and the browser will
+not start). It fails loudly rather than shipping an app that cannot scrape.
+
+You can only build for the machine you are on; there is no cross-compiling.
 
 ## Tests
 
