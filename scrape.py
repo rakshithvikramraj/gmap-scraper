@@ -585,11 +585,16 @@ def read_cache(path: Path | None = None) -> tuple[list[dict], set[tuple[str, str
                 key = obj.get("place_key", "")
                 records[key] = {**records.get(key, {}), **obj}
             elif kind == "pair":
-                # Markers written before worldwide support carry no country,
-                # and every one of those runs was US-only.
+                # Markers written before worldwide support carry no "country"
+                # key at all, and every one of those runs was US-only -- that
+                # missing key, not a falsy value, is what means "legacy".
+                # `mark_pair_done` always writes the key, even as "" for a
+                # malformed place, so a present-but-empty country must NOT
+                # hit this fallback: doing so made it indistinguishable from
+                # a legacy marker and the pair could never resolve as done.
                 pairs.add((
                     obj.get("term", ""),
-                    obj.get("country", "") or LEGACY_COUNTRY,
+                    obj["country"] if "country" in obj else LEGACY_COUNTRY,
                     obj.get("state", ""),
                     obj.get("city", ""),
                 ))
@@ -1100,6 +1105,69 @@ def check_auth() -> bool:
     return True
 
 
+class PlaceArgError(ValueError):
+    """A --country/--region/--city value that does not resolve to a place.
+
+    Raised rather than letting a malformed or unrecognised value reach
+    `geo.Place` (whose own validation would surface a bare ValueError with no
+    hint of which flag or value was at fault) or, worse, letting it construct
+    a `Place` silently: an unrecognised country name would search Google Maps
+    for a place that does not exist and mark it done forever, and a region or
+    city typed without its country would build a marker that can never be
+    read back as done on the next run.
+    """
+
+
+def resolve_places(
+    countries: list[str], regions: list[str], cities: list[str]
+) -> list["geo.Place"]:
+    """`Place`s named by --country/--region/--city, validated against `geo`.
+
+    Every country and region name must be one `geo` actually knows, and a
+    --region or --city entry must carry a country -- a bare "Texas" with no
+    comma is a plausible misreading of --region's own example. City names are
+    not checked against `geo.cities`: that list is capped at the 25 most
+    populous cities per region, so a smaller real city is expected to be
+    absent from it and must still be searchable.
+    """
+    places: list[geo.Place] = []
+    for raw in countries:
+        name = raw.strip()
+        if name not in geo.countries():
+            raise PlaceArgError(f"--country {raw!r}: unrecognised country {name!r}")
+        places.append(geo.Place(country=name))
+    for raw in regions:
+        region, _, country = raw.partition(",")
+        region, country = region.strip(), country.strip()
+        if not country:
+            raise PlaceArgError(
+                f'--region {raw!r} needs a country, e.g. --region "Texas,United States"'
+            )
+        if country not in geo.countries():
+            raise PlaceArgError(f"--region {raw!r}: unrecognised country {country!r}")
+        if region not in geo.regions(country):
+            raise PlaceArgError(
+                f"--region {raw!r}: unrecognised region {region!r} for {country!r}"
+            )
+        places.append(geo.Place(country=country, region=region))
+    for raw in cities:
+        city, _, rest = raw.partition(",")
+        region, _, country = rest.partition(",")
+        city, region, country = city.strip(), region.strip(), country.strip()
+        if not country:
+            raise PlaceArgError(
+                f'--city {raw!r} needs a country, e.g. --city "Austin,Texas,United States"'
+            )
+        if country not in geo.countries():
+            raise PlaceArgError(f"--city {raw!r}: unrecognised country {country!r}")
+        if region not in geo.regions(country):
+            raise PlaceArgError(
+                f"--city {raw!r}: unrecognised region {region!r} for {country!r}"
+            )
+        places.append(geo.Place(country=country, region=region, city=city))
+    return places
+
+
 def parse_list_arg(value: str | None, default: list[str]) -> list[str]:
     """A comma-separated CLI value, or `default` when it is blank."""
     if not value:
@@ -1184,7 +1252,8 @@ def main(argv: list[str] | None = None) -> int:
         description="Scrape club listings from Google Maps into a Google Sheet."
     )
     parser.add_argument("--terms", help="comma-separated search terms")
-    parser.add_argument("--states", help="comma-separated US states, e.g. Texas,Florida")
+    parser.add_argument("--states", help="comma-separated US states, e.g. Texas,Florida "
+                        "(ignored if --country, --region or --city is given)")
     parser.add_argument("--country", action="append", default=[],
                         help="search a whole country, repeatable")
     parser.add_argument("--region", action="append", default=[],
@@ -1208,15 +1277,10 @@ def main(argv: list[str] | None = None) -> int:
         places = [geo.Place(country="United States", region=state)
                   for state in parse_list_arg(args.states, STATES)]
         if args.country or args.region or args.city:
-            places = [geo.Place(country=name) for name in args.country]
-            for entry in args.region:
-                region, _, country = entry.partition(",")
-                places.append(geo.Place(country=country.strip(), region=region.strip()))
-            for entry in args.city:
-                city, _, rest = entry.partition(",")
-                region, _, country = rest.partition(",")
-                places.append(geo.Place(country=country.strip(),
-                                        region=region.strip(), city=city.strip()))
+            try:
+                places = resolve_places(args.country, args.region, args.city)
+            except PlaceArgError as exc:
+                parser.error(str(exc))
         run_stage1(
             parse_list_arg(args.terms, SEARCH_TERMS),
             places,

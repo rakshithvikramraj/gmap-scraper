@@ -1,3 +1,5 @@
+import pytest
+
 import geo
 import scrape
 
@@ -371,6 +373,22 @@ def test_a_legacy_two_part_marker_still_reads_as_done(tmp_path):
     assert ("padel club", "United States", "Texas", "") in done
 
 
+def test_a_present_but_empty_country_does_not_read_as_legacy(tmp_path):
+    # A marker written for a malformed --region (no comma, so country
+    # partitions to "") carries an explicit country: "" key, not a missing
+    # one. Falsy-testing that value ("" or LEGACY_COUNTRY) confused it with
+    # a pre-worldwide legacy marker and substituted "United States", so the
+    # pair could never be read back as done -- the query re-ran forever.
+    cache = tmp_path / "cache.jsonl"
+    cache.write_text(
+        '{"type": "pair", "term": "gym", "country": "", "state": "Texas", "city": ""}\n',
+        encoding="utf-8",
+    )
+    _, done = scrape.read_cache(cache)
+    assert ("gym", "", "Texas", "") in done
+    assert ("gym", "United States", "Texas", "") not in done
+
+
 def test_legacy_and_new_markers_coexist(tmp_path):
     cache = tmp_path / "cache.jsonl"
     cache.write_text('{"type": "pair", "term": "gym", "state": "Texas"}\n', encoding="utf-8")
@@ -666,6 +684,65 @@ def test_write_csv_round_trips(tmp_path):
         rows = list(csv.reader(handle))
     assert rows[0] == scrape.COLUMNS
     assert rows[1][scrape.COLUMNS.index("name")] == "Padel X"
+
+
+# --- resolve_places ---------------------------------------------------------
+
+def test_resolve_places_builds_a_whole_country_place():
+    places = scrape.resolve_places(["India"], [], [])
+    assert places == [geo.Place(country="India")]
+
+
+def test_resolve_places_builds_a_region_place():
+    places = scrape.resolve_places([], ["Texas,United States"], [])
+    assert places == [geo.Place(country="United States", region="Texas")]
+
+
+def test_resolve_places_builds_a_city_place():
+    places = scrape.resolve_places([], [], ["Austin,Texas,United States"])
+    assert places == [geo.Place(country="United States", region="Texas", city="Austin")]
+
+
+def test_resolve_places_rejects_a_region_with_no_comma():
+    # --region "Texas" with no comma is a plausible misreading of --region's
+    # own example ("Texas,United States"); it must not silently search
+    # country="" and mark a marker that can never be read back.
+    with pytest.raises(scrape.PlaceArgError, match="--region 'Texas'"):
+        scrape.resolve_places([], ["Texas"], [])
+
+
+def test_resolve_places_rejects_a_city_with_no_country():
+    with pytest.raises(scrape.PlaceArgError, match="--city 'Austin,Texas'"):
+        scrape.resolve_places([], [], ["Austin,Texas"])
+
+
+def test_resolve_places_rejects_an_unrecognised_country():
+    with pytest.raises(scrape.PlaceArgError, match="Untied States"):
+        scrape.resolve_places(["Untied States"], [], [])
+
+
+def test_resolve_places_rejects_an_unrecognised_region():
+    with pytest.raises(scrape.PlaceArgError, match="Texasx"):
+        scrape.resolve_places([], ["Texasx,United States"], [])
+
+
+def test_resolve_places_does_not_require_a_city_to_be_in_geodata():
+    # geodata caps cities at the 25 most populous per region, so a smaller
+    # real city is expected to be absent from it and must still resolve.
+    places = scrape.resolve_places([], [], ["Georgetown,Texas,United States"])
+    assert places == [
+        geo.Place(country="United States", region="Texas", city="Georgetown")
+    ]
+
+
+def test_main_exits_nonzero_and_names_the_flag_on_a_bad_region(capsys):
+    # The validation error must fire before run_stage1 is ever called --
+    # this exercises main()'s own wiring, not just resolve_places in
+    # isolation, and must not touch Playwright or the network to do it.
+    with pytest.raises(SystemExit) as exc_info:
+        scrape.main(["--region", "Texas"])
+    assert exc_info.value.code != 0
+    assert "--region" in capsys.readouterr().err
 
 
 def test_should_mark_done_requires_completeness_and_no_failures():
