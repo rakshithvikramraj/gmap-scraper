@@ -81,14 +81,29 @@ diff is worth more than automatic freshness for data that changes slowly.
 file stays pure data:
 
 ```python
+@dataclass(frozen=True)
+class Place:                                       # country/region/city, empty = "all of it"
+    def query_text() -> str                        # "Austin, Texas, United States"
+    def key() -> tuple[str, str, str]              # fixed arity, for done markers
+    def label() -> str                             # "Austin, Texas", for a log line
+
 def countries() -> list[str]                       # display names, sorted
 def regions(country: str) -> list[str]             # display names, sorted
 def cities(country: str, region: str) -> list[str] # display names, by population
 def country_code(country: str) -> str              # "United States" -> "us"
-def location_query(country, region, city) -> str   # the text after "in"
-def leaf_count(selection: Selection) -> int        # queries per search term
-def abbreviate(name: str) -> str                   # "Texas" -> "TX", else 3 chars
+def abbreviate(country: str, region: str) -> str   # "Texas" -> "TX"; "Maharashtra" -> "MAH"
+def leaf_places(selection: Selection) -> list[Place]
+def leaf_count(selection: Selection) -> int        # searches per term
 ```
+
+`abbreviate` takes both parts because region names are not globally unique,
+and because most of the world's admin1 codes are numeric — GeoNames gives
+Maharashtra `"16"`, which tells an operator nothing in a coverage cell. Only
+alphabetic codes are used; the rest fall back to three letters of the name.
+
+The geography triple travels as one `Place` value rather than three
+positional strings, so a signature change stays a signature change instead of
+rippling through every call site as three arguments.
 
 ### 2. Names, not codes, are the identity
 
