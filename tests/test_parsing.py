@@ -247,3 +247,46 @@ def test_enrich_website_records_fetch_failure():
 
 def test_enrich_website_blank_url_returns_empty():
     assert scrape.enrich_website("", fake_fetcher()) == scrape.empty_enrichment()
+
+
+def test_append_and_read_record(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    scrape.append_record({"place_key": "0x1:0x2", "name": "Padel X"}, cache)
+    records, pairs = scrape.read_cache(cache)
+    assert records == [{"place_key": "0x1:0x2", "name": "Padel X"}]
+    assert pairs == set()
+
+
+def test_read_cache_dedupes_on_place_key_last_wins(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    scrape.append_record({"place_key": "k", "name": "Old", "emails": ""}, cache)
+    scrape.append_record({"place_key": "k", "name": "Old", "emails": "a@b.c"}, cache)
+    records, _ = scrape.read_cache(cache)
+    assert len(records) == 1
+    assert records[0]["emails"] == "a@b.c"
+
+
+def test_mark_pair_done_round_trips(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    scrape.mark_pair_done("padel club", "Texas", cache)
+    _, pairs = scrape.read_cache(cache)
+    assert pairs == {("padel club", "Texas")}
+
+
+def test_read_cache_skips_corrupt_lines(tmp_path):
+    cache = tmp_path / "cache.jsonl"
+    scrape.append_record({"place_key": "k", "name": "Good"}, cache)
+    with cache.open("a") as fh:
+        fh.write("{not json\n\n")
+    records, _ = scrape.read_cache(cache)
+    assert len(records) == 1
+
+
+def test_read_cache_missing_file(tmp_path):
+    assert scrape.read_cache(tmp_path / "nope.jsonl") == ([], set())
+
+
+def test_utc_now_is_iso_8601():
+    from datetime import datetime
+
+    datetime.fromisoformat(scrape.utc_now())

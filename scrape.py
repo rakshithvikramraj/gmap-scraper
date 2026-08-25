@@ -3,7 +3,9 @@
 Run `python scrape.py --help` for usage.
 """
 
+import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote_plus, unquote, urljoin, urlparse
 
@@ -395,3 +397,54 @@ def enrich_website(url: str, fetch_fn, listing_phone: str = "") -> dict[str, str
     )
     result.update(extract_socials(html))
     return result
+
+
+def utc_now() -> str:
+    """Current UTC time as an ISO 8601 string, seconds precision."""
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _append_line(obj: dict, path: Path | None) -> None:
+    target = path or CACHE_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(obj, ensure_ascii=False) + "\n")
+
+
+def append_record(record: dict, path: Path | None = None) -> None:
+    """Append one club record to the cache."""
+    _append_line({"type": "record", **record}, path)
+
+
+def mark_pair_done(term: str, state: str, path: Path | None = None) -> None:
+    """Record that a (term, state) query finished, so re-runs can skip it."""
+    _append_line({"type": "pair", "term": term, "state": state}, path)
+
+
+def read_cache(path: Path | None = None) -> tuple[list[dict], set[tuple[str, str]]]:
+    """(records, completed_pairs) from the cache file.
+
+    Records are deduplicated on place_key, last write wins. Malformed lines
+    are skipped rather than aborting the run.
+    """
+    target = path or CACHE_PATH
+    if not target.exists():
+        return ([], set())
+
+    records: dict[str, dict] = {}
+    pairs: set[tuple[str, str]] = set()
+    with target.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            kind = obj.pop("type", None)
+            if kind == "record":
+                records[obj.get("place_key", "")] = obj
+            elif kind == "pair":
+                pairs.add((obj.get("term", ""), obj.get("state", "")))
+    return (list(records.values()), pairs)
