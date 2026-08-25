@@ -744,12 +744,32 @@ def test_fill_rate_rows_of_nothing_is_nothing():
 def test_fill_rate_counts_a_legitimate_zero_as_filled():
     rows = runstate.fill_rate_rows([{"reviews": 0}], ["reviews"])
     assert rows == [("reviews", 1.0)], "0 reviews is real data, not a blank"
+
+
+def test_fold_does_not_mutate_the_containers_it_updates():
+    """The existing mutation test only checks an int, which can never alias.
+
+    This one exercises all four mutable containers, so a fold that forgot to
+    copy one would fail here instead of silently corrupting the caller's state.
+    """
+    s = runstate.initial_state(set(), TERMS, STATES)
+    coverage_before, log_before = dict(s.coverage), list(s.log)
+
+    runstate.fold(s, "query_failed", {"term": "padel club", "state": "Texas",
+                                      "error": "boom"})
+    runstate.fold(s, "listings_found", {"term": "padel club", "state": "Texas",
+                                        "count": 120, "at_cap": True})
+
+    assert s.coverage == coverage_before, "coverage must be copied, not updated in place"
+    assert s.failures == [], "failures must be copied, not appended to"
+    assert s.at_cap == [], "at_cap must be copied, not appended to"
+    assert s.log == log_before, "log must be copied, not appended to"
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_runstate.py -k "elapsed or remaining or fill_rate" -v`
-Expected: 8 failures with `AttributeError: module 'runstate' has no attribute 'elapsed'`
+Expected: 9 failures — 8 with `AttributeError: module 'runstate' has no attribute 'elapsed'`, plus the new mutation test, which fails only if `fold` copies incorrectly (it should already pass)
 
 - [ ] **Step 3: Write the implementation**
 
@@ -807,7 +827,7 @@ def fill_rate_rows(records, columns) -> list:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `pytest -v`
-Expected: **105 passed**
+Expected: **106 passed**
 
 - [ ] **Step 5: Commit**
 
@@ -934,7 +954,7 @@ def save(prefs: dict, path: Path) -> None:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `pytest -v`
-Expected: **110 passed**
+Expected: **111 passed**
 
 - [ ] **Step 5: Commit**
 
@@ -1219,7 +1239,7 @@ class RoundedButton(tk.Canvas):
 - [ ] **Step 6: Run the whole suite**
 
 Run: `pytest -v`
-Expected: **117 passed**
+Expected: **118 passed**
 
 - [ ] **Step 7: Commit**
 
@@ -1372,7 +1392,7 @@ class CoverageGrid(tk.Canvas):
 - [ ] **Step 6: Run the whole suite**
 
 Run: `pytest -v`
-Expected: **122 passed**
+Expected: **123 passed**
 
 - [ ] **Step 7: Commit**
 
@@ -1670,7 +1690,7 @@ if __name__ == "__main__":
 - [ ] **Step 3: Check the suite still passes**
 
 Run: `pytest -v`
-Expected: **122 passed**. `app.py` has no tests of its own; this confirms importing nothing broke.
+Expected: **123 passed**. `app.py` has no tests of its own; this confirms importing nothing broke.
 
 - [ ] **Step 4: Launch it and look**
 
@@ -1958,7 +1978,7 @@ Append to `App`:
 - [ ] **Step 4: Check the suite still passes**
 
 Run: `pytest -v`
-Expected: **122 passed**
+Expected: **123 passed**
 
 - [ ] **Step 5: Launch and inspect each panel**
 
@@ -2133,7 +2153,7 @@ In `__init__`, after `self.show("setup")`, add:
 - [ ] **Step 4: Check the suite still passes**
 
 Run: `pytest -v`
-Expected: **122 passed**
+Expected: **123 passed**
 
 - [ ] **Step 5: Run a real short scrape**
 
@@ -2371,7 +2391,7 @@ mv .venv .venv.bak
 Expected: it completes without error and creates a working environment.
 
 Run: `uv run pytest -v`
-Expected: **122 passed**
+Expected: **123 passed**
 
 Then restore your original venv if you prefer it: `rm -rf .venv && mv .venv.bak .venv`
 
@@ -2388,7 +2408,7 @@ git push origin master
 
 ## Verification checklist
 
-- [ ] `pytest -v` reports 122 passed
+- [ ] `pytest -v` reports 123 passed
 - [ ] `python scrape.py --help` still lists all eight flags, unchanged
 - [ ] `python app.py` opens a window matching `design/Main.dc.html`
 - [ ] Tab reaches every button, Space and Return activate them, a focus ring shows
