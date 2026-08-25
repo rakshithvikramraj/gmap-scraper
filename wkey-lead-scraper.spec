@@ -32,7 +32,10 @@ a = Analysis(
     ["app.py"],
     pathex=[],
     binaries=list(pw_binaries),
-    datas=list(pw_datas),
+    # TTFs are plain data, not Mach-O, so unlike the Chromium browsers they
+    # collect without PyInstaller rewriting a signature -- the failure that
+    # forced browsers out of this spec and into package.py.
+    datas=list(pw_datas) + [("assets/fonts", "assets/fonts")],
     hiddenimports=list(pw_hiddenimports),
     hookspath=[],
     runtime_hooks=[],

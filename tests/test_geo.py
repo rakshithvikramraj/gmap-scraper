@@ -1,6 +1,7 @@
 import pytest
 
 import geo
+import scrape
 
 
 # --- Place ----------------------------------------------------------------
@@ -163,3 +164,73 @@ def test_leaf_places_match_the_count():
 def test_an_empty_selection_has_no_leaves():
     assert geo.leaf_places({}) == []
     assert geo.leaf_count({}) == 0
+
+
+def test_search_finds_a_city_without_knowing_its_region():
+    hits = geo.search_places("Austin")
+    assert geo.Place(country="United States", region="Texas", city="Austin") in hits
+
+
+def test_search_finds_a_region():
+    hits = geo.search_places("Maharashtra")
+    assert geo.Place(country="India", region="Maharashtra") in hits
+
+
+def test_search_finds_a_country():
+    assert geo.Place(country="Japan") in geo.search_places("Japan")
+
+
+def test_search_is_case_insensitive():
+    assert geo.search_places("austin") == geo.search_places("Austin")
+
+
+def test_search_puts_broader_places_first():
+    """A country match outranks a city match, so "India" is not buried."""
+    kinds = [len(p.parts()) for p in geo.search_places("India")]
+    assert kinds == sorted(kinds), "countries, then regions, then cities"
+
+
+def test_search_prefers_a_name_that_starts_with_the_query():
+    hits = [p.city for p in geo.search_places("York") if p.city]
+    assert hits.index("York") < hits.index("New York City"), \
+        "a prefix hit ranks above a substring hit"
+
+
+def test_search_ignores_a_query_too_short_to_be_useful():
+    assert geo.search_places("a") == [], "one letter would match half the world"
+
+
+def test_search_respects_its_limit():
+    assert len(geo.search_places("san", limit=5)) == 5
+
+
+def test_search_returns_nothing_for_a_place_that_does_not_exist():
+    assert geo.search_places("Zzzyxxqq") == []
+
+
+def test_every_us_state_abbreviates_to_a_unique_two_letter_code():
+    """Replaces widgets.STATE_ABBR, which only ever knew the 50 states."""
+    codes = {geo.abbreviate("United States", s) for s in scrape.ALL_50}
+    assert len(codes) == 50, "the 50 states must not collide in a coverage cell"
+    assert geo.abbreviate("United States", "Texas") == "TX"
+
+
+def test_a_region_with_a_numeric_code_falls_back_to_its_name():
+    """GeoNames gives Maharashtra "16", which tells an operator nothing."""
+    assert geo.abbreviate("India", "Maharashtra") == "MAH"
+
+
+def test_search_results_are_uniquely_identified_by_their_full_path():
+    """The selector keys its rows on query_text, so collisions pick the wrong place.
+
+    Place.label() is not safe here: the country Georgia and the US state
+    Georgia both label as "Georgia".
+    """
+    for query in ("georgia", "san", "santa", "victoria"):
+        paths = [p.query_text() for p in geo.search_places(query)]
+        assert len(paths) == len(set(paths)), f"{query!r} has colliding rows"
+
+
+def test_the_country_and_the_state_called_georgia_are_both_reachable():
+    paths = {p.query_text() for p in geo.search_places("georgia")}
+    assert "Georgia" in paths and "Georgia, United States" in paths

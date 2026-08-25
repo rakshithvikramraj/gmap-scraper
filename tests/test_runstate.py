@@ -70,7 +70,7 @@ def test_a_city_level_place_seeds_the_same_key_its_events_use():
 def test_fold_does_not_mutate_its_argument():
     s = runstate.initial_state(set(), TERMS, PLACES)
     runstate.fold(s, "listing_saved", {"name": "X", "city": "Y", "state": "UT"})
-    assert s.clubs == 0
+    assert s.saved == 0
 
 
 def test_run_start_begins_the_clock():
@@ -83,13 +83,19 @@ def test_run_start_begins_the_clock():
     assert s.queries_total == 4
 
 
-def test_a_clean_query_marks_the_state_done():
+def test_a_clean_query_marks_its_own_term_done_but_not_the_whole_state():
+    """One of two terms finishing has never actually finished the state.
+
+    The cell used to paint done here, because coverage was assigned per event
+    rather than derived from the terms underneath it.
+    """
     s = runstate.initial_state(set(), TERMS, PLACES)
     s = runstate.fold(s, "query_start", {"term": "padel club", "state": "Texas"})
     assert s.coverage["Texas"] == "active"
     s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
                                         "scraped": 8, "failed": 0, "complete": True})
-    assert s.coverage["Texas"] == "done"
+    assert s.term_status["Texas"]["padel club"] == "done"
+    assert s.coverage["Texas"] == "active", "padel court is still outstanding"
     assert s.queries_done == 1
 
 
@@ -129,7 +135,7 @@ def test_saved_listings_count_up():
     s = runstate.initial_state(set(), TERMS, PLACES)
     for name in ("Padel Den", "SLC Padel Club"):
         s = runstate.fold(s, "listing_saved", {"name": name, "city": "Orem", "state": "UT"})
-    assert s.clubs == 2
+    assert s.saved == 2
     assert "Padel Den" in s.log[-2]
 
 
@@ -271,3 +277,162 @@ def test_a_resumed_run_ends_at_exactly_one_hundred_percent():
                                                     "scraped": 1, "failed": 0,
                                                     "complete": True})
     assert s.queries_done == s.queries_total == 20
+
+
+PACING = ((5.0, 10.0), (1.0, 3.0), 1.5, 40)  # query pause, listing pause, overhead, uncapped
+
+
+def test_estimate_counts_one_query_per_term_per_place():
+    queries, _ = runstate.estimate_run(4, 79, 20, PACING)
+    assert queries == 316
+
+
+def test_estimate_prices_a_query_as_its_pause_plus_its_listings():
+    _, seconds = runstate.estimate_run(1, 1, 20, PACING)
+    # 7.5s mean query pause + 20 listings x (2.0s mean pause + 1.5s overhead)
+    assert seconds == 7.5 + 20 * 3.5
+
+
+def test_estimate_scales_with_both_terms_and_places():
+    _, one = runstate.estimate_run(1, 1, 10, PACING)
+    _, many = runstate.estimate_run(2, 3, 10, PACING)
+    assert many == one * 6
+
+
+def test_an_uncapped_run_is_priced_from_the_stated_assumption():
+    _, capped = runstate.estimate_run(1, 1, 40, PACING)
+    _, uncapped = runstate.estimate_run(1, 1, None, PACING)
+    assert uncapped == capped, "cap=None must price at UNCAPPED_ASSUMPTION, not zero"
+
+
+def test_estimating_nothing_costs_nothing():
+    assert runstate.estimate_run(0, 12, 20, PACING) == (0, 0.0)
+    assert runstate.estimate_run(3, 0, 20, PACING) == (0, 0.0)
+
+
+def test_the_default_pacing_comes_from_scrape_so_it_cannot_drift():
+    assert runstate.estimate_run(2, 5, 20) == runstate.estimate_run(
+        2, 5, 20,
+        (scrape.PAUSE_QUERY, scrape.PAUSE_LISTING,
+         scrape.LISTING_OVERHEAD, scrape.UNCAPPED_ASSUMPTION))
+
+
+CITY_PLACES = [
+    geo.Place(country="United States", region="Texas", city="Austin"),
+    geo.Place(country="United States", region="Texas", city="Dallas"),
+]
+
+
+def test_a_region_is_done_only_when_every_city_in_it_is_cached():
+    done = {("padel club", "United States", "Texas", "Austin"),
+            ("padel court", "United States", "Texas", "Austin")}
+    s = runstate.initial_state(done, TERMS, CITY_PLACES)
+    assert s.coverage["Texas"] == "pending", "Dallas is still outstanding"
+
+
+def test_a_region_is_done_when_all_its_cities_and_terms_are_cached():
+    done = {(term, "United States", "Texas", city)
+            for term in TERMS for city in ("Austin", "Dallas")}
+    s = runstate.initial_state(done, TERMS, CITY_PLACES)
+    assert s.coverage["Texas"] == "done"
+
+
+def test_a_cached_term_shows_done_across_the_whole_region():
+    done = {("padel club", "United States", "Texas", "Austin"),
+            ("padel club", "United States", "Texas", "Dallas")}
+    s = runstate.initial_state(done, TERMS, CITY_PLACES)
+    assert s.term_status["Texas"] == {"padel club": "done", "padel court": "pending"}
+
+
+def test_a_term_cached_in_only_one_city_is_not_done_for_the_region():
+    done = {("padel club", "United States", "Texas", "Austin")}
+    s = runstate.initial_state(done, TERMS, CITY_PLACES)
+    assert s.term_status["Texas"]["padel club"] == "pending"
+
+
+def test_initial_state_counts_the_outstanding_places_per_term():
+    s = runstate.initial_state(set(), TERMS, CITY_PLACES)
+    assert s.term_left["Texas"] == {"padel club": 2, "padel court": 2}
+
+
+def test_one_city_finishing_does_not_finish_the_term_for_the_region():
+    s = runstate.initial_state(set(), TERMS, CITY_PLACES)
+    s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
+                                        "scraped": 5, "failed": 0, "complete": True})
+    assert s.term_status["Texas"]["padel club"] == "active", "Dallas has not run"
+    assert s.coverage["Texas"] == "active", "and neither has the second term"
+
+
+def test_the_last_city_finishing_finishes_the_term():
+    s = runstate.initial_state(set(), TERMS, CITY_PLACES)
+    for _ in range(2):
+        s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
+                                            "scraped": 5, "failed": 0, "complete": True})
+    assert s.term_status["Texas"]["padel club"] == "done"
+
+
+def test_a_failure_in_one_city_is_not_erased_by_a_success_in_another():
+    s = runstate.initial_state(set(), TERMS, CITY_PLACES)
+    s = runstate.fold(s, "query_failed", {"term": "padel club", "state": "Texas",
+                                          "error": "boom"})
+    s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
+                                        "scraped": 5, "failed": 0, "complete": True})
+    assert s.term_status["Texas"]["padel club"] == "failed"
+
+
+def test_a_skipped_query_counts_towards_finishing_its_term():
+    s = runstate.initial_state(set(), TERMS, CITY_PLACES)
+    for _ in range(2):
+        s = runstate.fold(s, "query_skipped", {"term": "padel club", "state": "Texas"})
+    assert s.term_status["Texas"]["padel club"] == "done"
+
+
+def test_starting_a_query_marks_its_term_active():
+    s = runstate.initial_state(set(), TERMS, CITY_PLACES)
+    s = runstate.fold(s, "query_start", {"term": "padel club", "state": "Texas"})
+    assert s.term_status["Texas"]["padel club"] == "active"
+
+
+def test_folding_never_mutates_the_term_status_of_the_previous_state():
+    before = runstate.initial_state(set(), TERMS, CITY_PLACES)
+    snapshot = {k: dict(v) for k, v in before.term_status.items()}
+    runstate.fold(before, "query_start", {"term": "padel club", "state": "Texas"})
+    assert before.term_status == snapshot, "fold must copy the nested dicts too"
+
+
+def test_a_region_is_not_done_while_one_of_its_terms_is_outstanding():
+    s = runstate.initial_state(set(), TERMS, PLACES)
+    s = runstate.fold(s, "query_done", {"term": "padel club", "state": "Texas",
+                                        "scraped": 8, "failed": 0, "complete": True})
+    assert s.coverage["Texas"] == "active", "padel court has not run yet"
+
+
+def test_a_region_turns_done_when_its_last_term_lands():
+    s = runstate.initial_state(set(), TERMS, PLACES)
+    for term in TERMS:
+        s = runstate.fold(s, "query_done", {"term": term, "state": "Texas",
+                                            "scraped": 8, "failed": 0, "complete": True})
+    assert s.coverage["Texas"] == "done"
+
+
+def test_coverage_tally_counts_finished_against_total():
+    assert runstate.coverage_tally({"Texas": "done", "Utah": "pending",
+                                    "Ohio": "done"}) == (2, 3)
+
+
+def test_coverage_tally_of_nothing_is_zero_of_zero():
+    assert runstate.coverage_tally({}) == (0, 0)
+
+
+def test_country_tally_groups_regions_under_their_country():
+    keys = [("United States", "Texas"), ("United States", "Utah"), ("Japan", "Japan")]
+    coverage = {"Texas": "done", "Utah": "partial", "Japan": "failed"}
+    assert runstate.country_tally(keys, coverage) == [
+        ("United States", 1, 1, 0, 2),
+        ("Japan", 0, 0, 1, 1),
+    ]
+
+
+def test_country_tally_keeps_the_order_the_keys_arrived_in():
+    keys = [("Japan", "Japan"), ("United States", "Texas")]
+    assert [row[0] for row in runstate.country_tally(keys, {})] == ["Japan", "United States"]

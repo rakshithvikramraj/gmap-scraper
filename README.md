@@ -1,8 +1,8 @@
 # Wkey Lead Scraper
 
-Finds business listings on Google Maps across US states, enriches them with
-contact details from each business's own website, and writes the results to a
-CSV. What it searches for is whatever terms you give it.
+Finds business listings on Google Maps anywhere in the world, enriches them
+with contact details from each business's own website, and writes the results
+to a CSV. What it searches for, and where, is whatever you give it.
 
 ## For teammates: getting started
 
@@ -86,13 +86,27 @@ xattr -dr com.apple.quarantine .
 
 ### Using it
 
-Add your search terms and press **Start scrape**. There is no state picker:
-every run covers all 50 states. A full run takes a few hours, so it paces
-itself and saves as it goes — you can close the window and press Start again
-later to carry on from where it stopped.
+Add your search terms, press **Choose locations**, and press **Start scrape**.
 
-For a quick trial run, tick **Stop after N clubs per state** — that caps each
-state at a handful of listings and finishes in minutes.
+The location selector cascades country → state → city. Ticking a country
+searches the whole country; ticking states inside it searches those states;
+ticking cities inside a state searches those cities. An empty level means all
+of it. The search box at the top finds any country, state or city by name, so
+you do not need to know which state a city is in.
+
+**Target cities, not states.** Google caps a single search at roughly 120
+results, so "dentist in Texas" does not return Texas's dentists — it returns
+120 of them. Picking cities is how you get past that, and it is why the
+selector exists.
+
+Beneath the panes, a line tells you what the run will cost before you start
+it — how many searches, and roughly how long. It turns amber past a day.
+
+A full run paces itself and saves as it goes, so you can close the window and
+press Start again later to carry on from where it stopped.
+
+For a quick trial run, tick **Stop after N businesses per city** — that caps
+each search at a handful of listings and finishes in minutes.
 
 Results are written to `results.csv` — in the **Wkey Lead Scraper** folder in
 your Documents if you downloaded the app, or in `data/` if you are running
@@ -169,8 +183,9 @@ If the credentials are later revoked or expire, re-run step 4.
 
 Edit the `CONFIG` block at the top of `scrape.py`:
 
-- `SEARCH_TERMS` - the phrases to search. Each one is run against every state.
-- `STATES` - defaults to all 50. Narrow it for a faster run.
+- `SEARCH_TERMS` - the phrases to search. Each one is run against every place.
+- `STATES` - the 50 US states, used as the desktop app's first-run default
+  and by `--states`. Geography is chosen in the app or with the flags below.
 - `SHEET_URL`, `WORKSHEET` - where results land.
 - `ENRICH_SITES` - set `False` to skip website enrichment.
 
@@ -206,7 +221,7 @@ drops to near 0%, Google has changed its markup and the matching entry in the
 `SELECTORS` block in `scrape.py` needs updating. That is the expected
 maintenance point.
 
-`owner_name` and `owner_phone` are populated only when a club publishes a name
+`owner_name` and `owner_phone` are populated only when a business publishes a name
 next to a phone number under an ownership title. Expect 20-35% coverage; the
 rest of the rows rely on `phone`, `emails` and `other_phones`.
 
@@ -258,6 +273,20 @@ pytest -v
 ```
 
 Tests cover every parsing function and never touch the network or a browser.
+They also never open a window: the pure modules (`geo`, `selection`,
+`runstate`, and the layout maths in `widgets`) hold everything worth
+asserting, which is what keeps the suite runnable on a headless CI box.
+
+## Credits
+
+Location data from [GeoNames](https://www.geonames.org/), used under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Regenerate
+`geodata.py` with `uv run python tools/build_geodata.py`.
+
+The interface is set in
+[Unbounded](https://fonts.google.com/specimen/Unbounded) by the Unbounded
+Project Authors, used under the SIL Open Font License 1.1. The licence ships
+with the font at `assets/fonts/OFL.txt`.
 
 ## Caveats
 

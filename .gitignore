@@ -16,3 +16,6 @@ data/settings.json
 build/
 dist/
 design/geography/worldwide-location-targeting.html
+
+# Claude Code scratch (agent worktrees, session state)
+.claude/
