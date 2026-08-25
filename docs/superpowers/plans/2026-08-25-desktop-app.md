@@ -28,7 +28,8 @@
       "bg": "#f9f9f6", "panel": "#f3f3f0", "sunken": "#ededea", "line": "#dad9d5",
       "ink": "#2c2a25", "muted": "#71706b", "faint": "#86857f", "field": "#fefdfc",
       "accent": "#3b6fbc", "accent_d": "#2559a3", "selected": "#dfe8f6",
-      "done": "#50a069", "partial": "#dea645", "failed": "#c74f47",
+      "done": "#50a069", "done_ink": "#2f6b45",
+      "partial": "#dea645", "failed": "#c74f47",
   }
   ```
 - Font faces resolve at startup against `tkinter.font.families()`, first match wins:
@@ -1913,7 +1914,7 @@ Append these methods to `App`, before the actions section:
                       font=self.fonts["ui_bold"], height=30).pack(side="left")
         RoundedButton(row, "Finish here and keep what I have",
                       lambda: self.show("results"), font=self.fonts["ui"],
-                      height=30).pack(side="left", padx=(9, 0))
+                      height=30, bg=PALETTE["field"]).pack(side="left", padx=(9, 0))
 
         ttk.Label(panel, text="WHERE IT GOT TO", style="Faint.TLabel",
                   font=self.fonts["label"]).pack(anchor="w", pady=(18, 6))
@@ -1979,8 +1980,9 @@ Append to `App`:
                 text=(f"{len(partial)} states are only partly covered "
                       f"({', '.join(partial[:4])}) — they hit Google's 120-result limit."
                       if partial else ""))
-            self._fill_table()
-            self._fill_health()
+            records, _ = scrape.read_cache()
+            self._fill_table(records)
+            self._fill_health(records)
             self.status_detail.configure(text=str(scrape.CSV_PATH))
             self.status_right.configure(text="")
 
@@ -2007,10 +2009,9 @@ Append to `App`:
                 text=f"{s.queries_total} searches queued · {s.clubs} clubs cached")
             self.status_right.configure(text="")
 
-    def _fill_table(self):
+    def _fill_table(self, records):
         for row in self.table.get_children():
             self.table.delete(row)
-        records, _ = scrape.read_cache()
         for record in records[:200]:
             self.table.insert("", "end", values=(
                 record.get("name", ""),
@@ -2020,10 +2021,9 @@ Append to `App`:
                 f"{record.get('rating', '')} · {record.get('reviews', '')}".strip(" ·"),
             ))
 
-    def _fill_health(self):
+    def _fill_health(self, records):
         for child in self.health_rows.winfo_children():
             child.destroy()
-        records, _ = scrape.read_cache()
         interesting = ["name", "address", "phone", "website", "emails",
                        "instagram", "owner_name", "owner_phone"]
         for column, rate in runstate.fill_rate_rows(records, interesting):
