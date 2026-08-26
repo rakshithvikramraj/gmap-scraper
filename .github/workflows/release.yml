@@ -115,6 +115,11 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
+          # This job never checks the repo out - it only needs the built zips.
+          # gh normally names the target repo by reading a git remote, so with
+          # no .git it exits "fatal: not a git repository". GH_REPO tells it
+          # directly, which is cheaper than cloning the source to find out.
+          GH_REPO: ${{ github.repository }}
         run: |
           cat > notes.md <<'NOTES'
           Download the file for your machine, unzip it, and open the app.
