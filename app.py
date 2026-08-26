@@ -561,6 +561,25 @@ class App(tk.Tk):
         return selection.is_country_on(self.selection, place.country)
 
     def _focus_country(self, name) -> None:
+        # In search mode the country pane holds flat results at every level,
+        # so the row name is a Place path rather than a country -- the same
+        # thing _toggle_country resolves through _hits. Storing it verbatim
+        # left _pick_country as "Texas, United States", which names no
+        # country, so geo.regions found nothing and the State pane stayed
+        # empty even after the search was cleared. Point the panes at the
+        # place instead, so clearing the search lands on what was just found.
+        #
+        # No repaint here: the flat list is what is on screen while a search
+        # is running, and the toggle that follows every click repaints it.
+        if self._search:
+            place = self._hits.get(name)
+            if place is None:
+                return
+            self._pick_country = place.country
+            self._pick_region = place.region
+            self.pane_region.set_current(place.region)
+            self.pane_city.set_current(place.city)
+            return
         self._pick_country = name
         self._pick_region = ""
         self.pane_region.set_current("")
