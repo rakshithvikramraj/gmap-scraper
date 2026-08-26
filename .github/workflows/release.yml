@@ -3,7 +3,7 @@
 # Push a tag to cut a release:      git tag v1.1.0 && git push origin v1.1.0
 # Run it by hand to test a build:   Actions -> Release -> Run workflow
 #
-# A manual run uploads the three zips as workflow artifacts and stops there.
+# A manual run uploads both zips as workflow artifacts and stops there.
 # Only a tag creates a GitHub Release.
 name: Release
 
