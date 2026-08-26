@@ -40,8 +40,8 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync
-      # Gates the three builds below. A red suite should surface in seconds
-      # here rather than after three ~10-minute platform builds.
+      # Gates the two builds below. A red suite should surface in seconds
+      # here rather than after two ~10-minute platform builds.
       - run: uv run pytest -q
 
   build:
@@ -49,16 +49,13 @@ jobs:
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
-      # One platform failing must not throw away the other two.
+      # One platform failing must not throw away the other.
       fail-fast: false
       matrix:
         include:
           - os: macos-14
             label: macOS (Apple Silicon)
             asset: wkey-lead-scraper-macos-arm64
-          - os: macos-13
-            label: macOS (Intel)
-            asset: wkey-lead-scraper-macos-intel
           - os: windows-latest
             label: Windows
             asset: wkey-lead-scraper-windows-x64
@@ -125,8 +122,9 @@ jobs:
           | Your machine | File |
           |---|---|
           | Mac, 2021 or newer | `wkey-lead-scraper-macos-arm64.zip` |
-          | Mac, 2020 or older | `wkey-lead-scraper-macos-intel.zip` |
           | Windows | `wkey-lead-scraper-windows-x64.zip` |
+
+          Intel Macs (2020 and older) are not supported.
 
           **The first open needs one extra step.** The app is not signed with a
           paid Apple or Microsoft certificate, so both systems ask before running

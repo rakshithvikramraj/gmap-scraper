@@ -1,9 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller build for the Wkey Lead Scraper desktop app.
 
-One spec, three targets: macOS arm64, macOS x86_64 and Windows x64. The
-architecture follows whichever Python runs the build, so CI picks it by
-choosing a runner rather than by passing a flag.
+One spec, two shipped targets: macOS arm64 and Windows x64. The architecture
+follows whichever Python runs the build, so CI picks it by choosing a runner
+rather than by passing a flag — a local build on an Intel Mac still produces
+an x86_64 app, CI just no longer ships one.
 
 This spec deliberately does NOT bundle the Playwright browsers. PyInstaller
 rewrites the signature of every Mach-O file it collects, which fails outright

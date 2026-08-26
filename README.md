@@ -14,11 +14,10 @@ Download the app and open it. Nothing to install first — no Python, no Git.
    | Your machine | File |
    |---|---|
    | Mac, 2021 or newer | `wkey-lead-scraper-macos-arm64.zip` |
-   | Mac, 2020 or older | `wkey-lead-scraper-macos-intel.zip` |
    | Windows | `wkey-lead-scraper-windows-x64.zip` |
 
-   Not sure which Mac you have? Apple menu → About This Mac. A chip named
-   "Apple M1" or later is the first row; "Intel" is the second.
+   Not sure which Mac you have? Apple menu → About This Mac. The Mac download
+   needs a chip named "Apple M1" or later. Intel Macs are not supported.
 
 2. Unzip it and open **Wkey Lead Scraper**.
 
@@ -232,21 +231,20 @@ States"`, rather than splitting search terms by hand.
 
 ## Building the packages
 
-GitHub Actions builds all three downloads. Push a tag and it cuts a release:
+GitHub Actions builds both downloads. Push a tag and it cuts a release:
 
 ```bash
 git tag v1.1.0
 git push origin v1.1.0
 ```
 
-The workflow runs the tests first, then builds on `macos-14` (Apple Silicon),
-`macos-13` (Intel) and `windows-latest`, and attaches the three zips to a new
-release. To try a build without releasing anything, run it by hand from the
+The workflow runs the tests first, then builds on `macos-14` (Apple Silicon)
+and `windows-latest`, and attaches both zips to a new release. To try a build without releasing anything, run it by hand from the
 Actions tab — the zips come out as workflow artifacts instead.
 
 Actions minutes are free on this repo's standard runners, so a release costs
 nothing but time — roughly 10-15 minutes per platform, most of it downloading
-Chromium. The three platforms build in parallel.
+Chromium. Both platforms build in parallel.
 
 To build locally on your own machine:
 
