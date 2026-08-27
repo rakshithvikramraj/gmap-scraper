@@ -224,6 +224,22 @@ def clamp_top(top, height, row_h, count):
     return max(0, min(int(top), max(0, count - int(height // row_h))))
 
 
+def scroll_to_show(top, index, height, row_h):
+    """`top` moved as little as possible to bring `index` on screen.
+
+    Shared by arrowing and by reveal(): both want "scroll only if the row is
+    off screen, and only far enough to reach it", and two copies of that rule
+    would drift. A pane too short for one row still lands on the row rather
+    than dividing by zero rows-visible.
+    """
+    visible = max(1, int(height // row_h))
+    if index < top:
+        return index
+    if index >= top + visible:
+        return index - visible + 1
+    return top
+
+
 def scroll_fractions(top, height, row_h, count):
     """(first, last) for a ttk.Scrollbar.set, as fractions of the list."""
     if count <= 0:
@@ -298,6 +314,20 @@ class PickList(tk.Canvas):
         self._current = name
         self._draw()
 
+    def reveal(self, name: str) -> None:
+        """Highlight `name` and scroll until it is on screen.
+
+        set_current only highlights. Landing on Texas, row 43 of 51, would
+        leave the pane showing Alabama and read as nothing having happened.
+        A name this pane does not hold just moves the highlight.
+        """
+        self._current = name
+        names = [row.name for row in self._rows]
+        if name in names:
+            self._top = scroll_to_show(self._top, names.index(name),
+                                       self._height(), self._row_h)
+        self._draw()
+
     def current(self) -> str:
         return self._current
 
@@ -363,11 +393,8 @@ class PickList(tk.Canvas):
         index = max(0, min(len(names) - 1, index + step))
         self._current = names[index]
         # Keep the highlight in view, or arrowing past the edge looks dead.
-        visible = max(1, int(self._height() // self._row_h))
-        if index < self._top:
-            self._top = index
-        elif index >= self._top + visible:
-            self._top = index - visible + 1
+        self._top = scroll_to_show(self._top, index, self._height(),
+                                   self._row_h)
         if self._on_highlight:
             self._on_highlight(self._current)
         self._draw()

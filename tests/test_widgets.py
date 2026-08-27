@@ -93,6 +93,25 @@ def test_clamp_top_is_zero_when_everything_already_fits():
     assert widgets.clamp_top(5, 900, 30, 10) == 0
 
 
+def test_scroll_to_show_leaves_a_visible_row_where_it_is():
+    # 200px shows 6 whole rows, so rows 10..15 are already on screen
+    assert widgets.scroll_to_show(10, 12, 200, 30) == 10
+
+
+def test_scroll_to_show_scrolls_up_to_a_row_above_the_viewport():
+    assert widgets.scroll_to_show(20, 4, 200, 30) == 4
+
+
+def test_scroll_to_show_puts_a_row_below_the_viewport_at_the_bottom():
+    # 6 rows visible, so showing row 43 means a top of 43 - 6 + 1 = 38
+    assert widgets.scroll_to_show(0, 43, 200, 30) == 38
+
+
+def test_scroll_to_show_survives_a_pane_too_short_for_one_row():
+    """An unmapped pane reports height 0; it must still land on the row."""
+    assert widgets.scroll_to_show(0, 43, 0, 30) == 43
+
+
 def test_scroll_fractions_span_the_whole_bar_when_everything_fits():
     assert widgets.scroll_fractions(0, 900, 30, 10) == (0.0, 1.0)
 

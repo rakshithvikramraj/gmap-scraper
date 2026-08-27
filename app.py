@@ -561,24 +561,11 @@ class App(tk.Tk):
         return selection.is_country_on(self.selection, place.country)
 
     def _focus_country(self, name) -> None:
-        # In search mode the country pane holds flat results at every level,
-        # so the row name is a Place path rather than a country -- the same
-        # thing _toggle_country resolves through _hits. Storing it verbatim
-        # left _pick_country as "Texas, United States", which names no
-        # country, so geo.regions found nothing and the State pane stayed
-        # empty even after the search was cleared. Point the panes at the
-        # place instead, so clearing the search lands on what was just found.
-        #
-        # No repaint here: the flat list is what is on screen while a search
-        # is running, and the toggle that follows every click repaints it.
+        # In search mode this pane holds flat results at every level, and
+        # highlighting one is only browsing: arrowing down a result list must
+        # not move the panes underneath the operator. Activating a result is
+        # the gesture that commits -- see _toggle_country.
         if self._search:
-            place = self._hits.get(name)
-            if place is None:
-                return
-            self._pick_country = place.country
-            self._pick_region = place.region
-            self.pane_region.set_current(place.region)
-            self.pane_city.set_current(place.city)
             return
         self._pick_country = name
         self._pick_region = ""
@@ -593,15 +580,31 @@ class App(tk.Tk):
 
     def _toggle_country(self, name) -> None:
         # In search mode the country pane holds flat results at every level,
-        # so the row name is a Place label rather than a country.
+        # so the row name is a Place path rather than a country. Activating
+        # one is a jump, not a pick: a flat list cannot express "this state
+        # but not its neighbours", so search finds the place and the panes it
+        # lands on are where the ticking happens.
         if self._search:
-            place = self._hits.get(name)
-            if place is not None:
-                self.selection = selection.toggle_place(self.selection, place)
-            return self._paint_panes()
+            return self._jump_to(self._hits.get(name))
         self._pick_country = name
         self.selection = selection.toggle_country(self.selection, name)
         self._paint_panes()
+
+    def _jump_to(self, place) -> None:
+        """Leave the search behind and point the three panes at `place`."""
+        if place is None:
+            return
+        self._pick_country = place.country
+        self._pick_region = place.region
+        # Emptying the box fires its trace, so _search, the hint and the
+        # repaint all happen through _on_search rather than through a second
+        # path here that could come to disagree with it.
+        self.search_var.set("")
+        # Reveal after that repaint, or there are no rows to scroll to. A
+        # highlight alone is not enough: Texas is row 43 of 51.
+        self.pane_country.reveal(place.country)
+        self.pane_region.reveal(place.region)
+        self.pane_city.reveal(place.city)
 
     def _toggle_region(self, name) -> None:
         if not self._pick_country:
